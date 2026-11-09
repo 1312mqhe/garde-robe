@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Garde-robe">
-<meta name="theme-color" content="#f6f1ea">
+<meta name="theme-color" content="#0e0e14">
+<meta name="color-scheme" content="dark">
 <title>Garde-robe</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -15,81 +16,118 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <h1 id="title">Aujourd'hui</h1>
-</header>
+<div class="bg-glow" aria-hidden="true"></div>
+
+<!-- Icônes réutilisables -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ca8"/></linearGradient>
+  </defs>
+  <symbol id="i-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></symbol>
+  <symbol id="i-hanger" viewBox="0 0 24 24"><path d="M12 7.2a2.2 2.2 0 1 1 2.2-2.2c0 1.2-2.2 1.6-2.2 3v1.2L3 15.6c-.9.6-.5 2 .6 2h16.8c1.1 0 1.5-1.4.6-2L12 9.2"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.3A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.7C19.5 15.4 12 20 12 20Z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.8"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</defs>
+</svg>
 
 <main>
   <!-- AUJOURD'HUI -->
   <section id="tab-today" class="tab active">
-    <div id="weather" class="card weather">
+    <header class="head">
+      <div id="today-kicker" class="kicker">&nbsp;</div>
+      <h1>Ta tenue du jour</h1>
+    </header>
+
+    <div id="weather" class="glass weather">
       <div class="muted">Chargement de la météo…</div>
     </div>
 
-    <div id="outfit-zone">
-      <div class="card">
-        <h2>Ta tenue du jour</h2>
-        <div id="outfit-hint" class="muted small"></div>
-        <div id="stage" class="stage"></div>
-        <p class="muted small center">Touche une pièce pour la changer.</p>
-        <div class="btns">
-          <button id="btn-another" class="primary">🔄 Une autre idée</button>
-          <button id="btn-save">💾 Sauvegarder</button>
-        </div>
-        <div class="btns">
-          <button id="btn-ai">✨ Voir sur moi (IA)</button>
-          <button id="btn-gemini">📤 Envoyer à Gemini</button>
-        </div>
-        <div id="ai-status" class="muted small center"></div>
-        <div id="ai-result"></div>
+    <div class="glass outfit">
+      <div id="stage" class="stage"></div>
+      <div class="swipe-hint">Glisse pour une autre idée · touche une pièce pour la changer</div>
+      <div id="outfit-hint" class="hint"></div>
+      <div id="pieces-strip" class="strip"></div>
+
+      <div class="actions-main">
+        <button id="btn-another" class="btn-grad"><svg class="ic"><use href="#i-shuffle"/></svg>Une autre idée</button>
+        <button id="btn-save" class="btn-icon" aria-label="Sauvegarder"><svg class="ic"><use href="#i-heart"/></svg></button>
       </div>
+      <div class="actions-sub">
+        <button id="btn-ai" class="btn-glass"><svg class="ic"><use href="#i-sparkle"/></svg>Essayer (IA)</button>
+        <button id="btn-gemini" class="btn-glass"><svg class="ic"><use href="#i-share"/></svg>Gemini</button>
+      </div>
+      <div id="ai-status" class="status"></div>
+      <div id="ai-result"></div>
     </div>
   </section>
 
   <!-- GARDE-ROBE -->
   <section id="tab-wardrobe" class="tab">
+    <header class="head">
+      <div id="wardrobe-kicker" class="kicker">&nbsp;</div>
+      <h1>Dressing</h1>
+    </header>
     <div class="chips" id="filter-chips"></div>
     <div id="wardrobe-grid" class="grid"></div>
     <div id="wardrobe-empty" class="empty hidden">
-      <p>Ta garde-robe est vide.</p>
-      <p class="muted">Ajoute tes vêtements en photo avec le bouton +.</p>
+      <div class="empty-ic"><svg class="ic"><use href="#i-hanger"/></svg></div>
+      <p>Ton dressing est vide</p>
+      <p class="muted">Ajoute tes vêtements en photo avec le bouton +</p>
     </div>
-    <button id="fab-add" class="fab" aria-label="Ajouter un vêtement">+</button>
+    <button id="fab-add" class="fab" aria-label="Ajouter un vêtement"><svg class="ic"><use href="#i-plus"/></svg></button>
   </section>
 
-  <!-- BIBLIOTHÈQUE -->
+  <!-- TENUES -->
   <section id="tab-library" class="tab">
-    <div id="library-list"></div>
+    <header class="head">
+      <div id="library-kicker" class="kicker">&nbsp;</div>
+      <h1>Mes tenues</h1>
+    </header>
+    <div id="library-list" class="lib-grid"></div>
     <div id="library-empty" class="empty hidden">
-      <p>Aucune tenue sauvegardée.</p>
-      <p class="muted">Sur l'onglet Aujourd'hui, touche « Sauvegarder » pour garder une tenue ici.</p>
+      <div class="empty-ic"><svg class="ic"><use href="#i-heart"/></svg></div>
+      <p>Aucune tenue sauvegardée</p>
+      <p class="muted">Touche le cœur sous une tenue pour la garder ici</p>
     </div>
   </section>
 
   <!-- RÉGLAGES -->
   <section id="tab-settings" class="tab">
-    <div class="card">
+    <header class="head">
+      <div class="kicker">Garde-robe</div>
+      <h1>Réglages</h1>
+    </header>
+
+    <div class="glass block">
       <h2>Météo</h2>
-      <p class="muted small">Par défaut, l'appli utilise ta position. Tu peux aussi choisir une ville.</p>
+      <p class="muted small">Ta position est demandée une seule fois puis gardée. Tu peux aussi fixer une ville.</p>
       <div class="row">
         <input id="city-input" type="text" placeholder="Ex : Lyon" autocomplete="off">
-        <button id="city-search">Chercher</button>
+        <button id="city-search" class="btn-glass">Chercher</button>
       </div>
       <div id="city-results"></div>
-      <button id="use-gps" class="link">📍 Utiliser ma position</button>
+      <button id="use-gps" class="link"><svg class="ic"><use href="#i-pin"/></svg>Utiliser ma position</button>
       <div id="loc-current" class="muted small"></div>
     </div>
 
-    <div class="card">
-      <h2>Essayage IA (gratuit)</h2>
-      <p class="small">L'essayage passe par un modèle gratuit hébergé sur Hugging Face. Il te faut :</p>
-      <ol class="small">
+    <div class="glass block">
+      <h2>Essayage IA <span class="badge">gratuit</span></h2>
+      <p class="small soft">L'essayage passe par un modèle gratuit hébergé sur Hugging Face. Il te faut :</p>
+      <ol class="small soft">
         <li>Une photo de toi en pied, de face, bien éclairée.</li>
-        <li>Un compte gratuit sur huggingface.co, puis une clé de type « Read » (Settings → Access Tokens). Sans clé, ça peut marcher, mais le quota est plus petit.</li>
+        <li>Un compte gratuit sur huggingface.co et une clé « Read » (Settings → Access Tokens). Sans clé, ça peut marcher, avec un quota plus petit.</li>
       </ol>
       <div class="person-row">
         <img id="person-preview" alt="" class="hidden">
-        <label class="filebtn">📷 Choisir ma photo
+        <label class="btn-glass filebtn"><svg class="ic"><use href="#i-camera"/></svg>Choisir ma photo
           <input id="person-input" type="file" accept="image/*" hidden>
         </label>
       </div>
@@ -102,73 +140,100 @@
           <input id="hf-space" type="text" placeholder="yisol/IDM-VTON">
         </label>
       </details>
-      <p class="muted small">Ta clé et ta photo restent sur ton téléphone. Elles ne sont envoyées qu'à Hugging Face, quand tu touches « Voir sur moi ».</p>
+      <p class="muted small">Ta clé et ta photo restent sur ton téléphone. Elles ne partent vers Hugging Face que quand tu touches « Essayer (IA) ».</p>
     </div>
 
-    <div class="card">
+    <div class="glass block">
       <h2>Sauvegarde</h2>
-      <p class="muted small">Tout est stocké sur ton téléphone. Fais une copie de temps en temps, par exemple dans Fichiers ou iCloud.</p>
-      <div class="btns">
-        <button id="export-btn">⬇️ Exporter</button>
-        <label class="filebtn">⬆️ Importer
+      <p class="muted small">Tout est stocké sur ton téléphone. Fais une copie de temps en temps, dans Fichiers ou iCloud.</p>
+      <div class="row">
+        <button id="export-btn" class="btn-glass grow">Exporter</button>
+        <label class="btn-glass filebtn grow">Importer
           <input id="import-input" type="file" accept="application/json,.json" hidden>
         </label>
       </div>
       <div id="storage-info" class="muted small"></div>
     </div>
-    <p class="muted small center">Météo : Open-Meteo · Détourage : fait sur ton téléphone</p>
+    <p class="muted small center">Météo : Open-Meteo · Détourage fait sur ton téléphone</p>
   </section>
 </main>
 
 <nav class="tabs">
-  <button data-tab="today" class="active"><span>☀️</span>Aujourd'hui</button>
-  <button data-tab="wardrobe"><span>👕</span>Garde-robe</button>
-  <button data-tab="library"><span>📚</span>Tenues</button>
-  <button data-tab="settings"><span>⚙️</span>Réglages</button>
+  <button data-tab="today" class="active"><svg class="ic"><use href="#i-today"/></svg>Aujourd'hui</button>
+  <button data-tab="wardrobe"><svg class="ic"><use href="#i-hanger"/></svg>Dressing</button>
+  <button data-tab="library"><svg class="ic"><use href="#i-heart"/></svg>Tenues</button>
+  <button data-tab="settings"><svg class="ic"><use href="#i-gear"/></svg>Réglages</button>
 </nav>
 
 <!-- Feuille : ajouter / modifier un vêtement -->
 <div id="sheet" class="sheet hidden">
   <div class="sheet-body">
+    <div class="grabber"></div>
     <div class="row between">
       <h2 id="sheet-title">Nouveau vêtement</h2>
-      <button id="sheet-close" class="link">Fermer</button>
+      <button id="sheet-close" class="btn-round" aria-label="Fermer"><svg class="ic"><use href="#i-close"/></svg></button>
     </div>
-    <div id="pick-zone" class="btns">
-      <label class="filebtn primary">📷 Prendre une photo
+    <div id="pick-zone" class="pick">
+      <label class="pick-card main">
+        <svg class="ic"><use href="#i-camera"/></svg>
+        <b>Prendre une photo</b>
+        <span>Pose le vêtement à plat, sur un fond uni</span>
         <input id="cam-input" type="file" accept="image/*" capture="environment" hidden>
       </label>
-      <label class="filebtn">🖼️ Depuis mes photos
+      <label class="pick-card">
+        <svg class="ic"><use href="#i-image"/></svg>
+        <b>Depuis mes photos</b>
         <input id="lib-input" type="file" accept="image/*" hidden>
       </label>
     </div>
     <div id="edit-zone" class="hidden">
-      <div class="photo-box checker"><img id="edit-img" alt=""></div>
-      <div id="cut-status" class="muted small center"></div>
-      <div class="row center">
+      <div class="photo-box"><img id="edit-img" alt=""></div>
+      <div id="cut-status" class="status"></div>
+      <div class="center">
         <button id="toggle-cut" class="link small hidden">Garder la photo d'origine</button>
       </div>
-      <label class="field">Type
-        <select id="f-cat"></select>
-      </label>
-      <label class="field">Couleur
-        <select id="f-color"></select>
-      </label>
-      <div class="field">Chaleur
-        <div class="seg" id="f-warmth"></div>
-      </div>
-      <label class="check"><input type="checkbox" id="f-rain"> Supporte la pluie (imperméable, bottes…)</label>
+      <div class="field">Type</div>
+      <div class="chips wrap" id="f-cat-chips"></div>
+      <select id="f-cat" hidden></select>
+      <div class="field">Couleur</div>
+      <div class="swatches" id="f-color-swatches"></div>
+      <select id="f-color" hidden></select>
+      <div class="field">Chaleur</div>
+      <div class="seg" id="f-warmth"></div>
+      <label class="switch"><input type="checkbox" id="f-rain"><span class="track"></span>Supporte la pluie</label>
       <label class="field">Nom (facultatif)
         <input id="f-name" type="text" placeholder="Ex : chemise en lin bleue">
       </label>
-      <div class="btns">
-        <button id="f-save" class="primary">Enregistrer</button>
-        <button id="f-delete" class="danger hidden">Supprimer</button>
-      </div>
+      <button id="f-save" class="btn-grad full">Enregistrer</button>
+      <button id="f-delete" class="link danger full hidden">Supprimer ce vêtement</button>
     </div>
+  </div>
+</div>
+
+<!-- Feuille : détail d'une tenue sauvegardée -->
+<div id="osheet" class="sheet hidden">
+  <div class="sheet-body">
+    <div class="grabber"></div>
+    <div class="row between">
+      <h2 id="o-title">Tenue</h2>
+      <button id="o-close" class="btn-round" aria-label="Fermer"><svg class="ic"><use href="#i-close"/></svg></button>
+    </div>
+    <div id="o-meta" class="muted small"></div>
+    <div id="o-images" class="o-images"></div>
+    <div id="o-minis" class="strip"></div>
+    <button id="o-wear" class="btn-grad full">Porter cette tenue aujourd'hui</button>
+    <div class="row">
+      <label class="btn-glass filebtn grow"><svg class="ic"><use href="#i-image"/></svg>Joindre une image
+        <input id="o-img" type="file" accept="image/*" hidden>
+      </label>
+      <button id="o-rename" class="btn-glass grow">Renommer</button>
+    </div>
+    <button id="o-del" class="link danger full">Supprimer cette tenue</button>
   </div>
 </div>
 
 <div id="toast" class="toast hidden"></div>
 
 <script src="app.js" type="module"></script>
+</body>
+</html>

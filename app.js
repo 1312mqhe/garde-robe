@@ -130,11 +130,9 @@ function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 function itemName(it) { return it.name || `${CATS[it.category].short.toLowerCase()} ${it.color}`; }
 
 // ---------- Navigation ----------
-const TITLES = { today: "Aujourd'hui", wardrobe: 'Garde-robe', library: 'Mes tenues', settings: 'Réglages' };
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  $('#title').textContent = TITLES[name];
   $('#fab-add').classList.toggle('hidden', name !== 'wardrobe');
   if (name === 'library') renderLibrary();
   if (name === 'wardrobe') renderWardrobe();
@@ -232,9 +230,10 @@ async function removeBackground(blob, onProgress) {
 
 // ---------- Garde-robe ----------
 function renderFilters() {
-  const cats = ['tout', ...Object.keys(CATS)];
+  const count = c => c === 'tout' ? state.items.length : state.items.filter(i => i.category === c).length;
+  const cats = ['tout', ...Object.keys(CATS).filter(c => count(c) > 0 || c === state.filter)];
   $('#filter-chips').innerHTML = cats.map(c =>
-    `<button data-c="${c}" class="${state.filter === c ? 'on' : ''}">${c === 'tout' ? 'Tout' : CATS[c].short}</button>`).join('');
+    `<button data-c="${c}" class="${state.filter === c ? 'on' : ''}">${c === 'tout' ? 'Tout' : CATS[c].short}<span class="n">${count(c)}</span></button>`).join('');
   $('#filter-chips').querySelectorAll('button').forEach(b => b.onclick = () => { state.filter = b.dataset.c; renderWardrobe(); });
 }
 function renderWardrobe() {
@@ -243,13 +242,27 @@ function renderWardrobe() {
     .sort((a, b) => Object.keys(CATS).indexOf(a.category) - Object.keys(CATS).indexOf(b.category) || b.createdAt - a.createdAt);
   $('#wardrobe-empty').classList.toggle('hidden', state.items.length > 0);
   $('#wardrobe-grid').innerHTML = list.map(i =>
-    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="tag">${CATS[i.category].short}</span></div>`).join('');
+    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="dot" style="background:${swatchCss(i.color)}"></span></div>`).join('');
+  $('#wardrobe-kicker').textContent = state.items.length ? `${state.items.length} vêtement${state.items.length > 1 ? 's' : ''}` : 'Ta garde-robe';
   $('#wardrobe-grid').querySelectorAll('.tile').forEach(t => t.onclick = () => openSheet(state.items.find(i => i.id === t.dataset.id)));
 }
 
 // Feuille d'ajout / édition
 $('#f-cat').innerHTML = Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
 $('#f-color').innerHTML = COLORS.map(c => `<option value="${c.id}">${c.id[0].toUpperCase() + c.id.slice(1)}</option>`).join('');
+function swatchCss(id) {
+  const c = colorById(id);
+  return c.rgb ? `rgb(${c.rgb.join(',')})` : 'conic-gradient(#ff5ca8,#ffd23f,#3fd28b,#4c8dff,#8b6cff,#ff5ca8)';
+}
+$('#f-cat-chips').innerHTML = Object.entries(CATS).map(([k, v]) => `<button type="button" data-c="${k}">${v.short}</button>`).join('');
+$('#f-cat-chips').querySelectorAll('button').forEach(b => b.onclick = () => { $('#f-cat').value = b.dataset.c; $('#f-cat').onchange(); syncPickers(); });
+$('#f-color-swatches').innerHTML = COLORS.map(c => `<button type="button" data-c="${c.id}" aria-label="${c.id}" style="background:${swatchCss(c.id)}"></button>`).join('') + '<div class="swatch-name" id="swatch-name"></div>';
+$('#f-color-swatches').querySelectorAll('button').forEach(b => b.onclick = () => { $('#f-color').value = b.dataset.c; syncPickers(); });
+function syncPickers() {
+  $('#f-cat-chips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === $('#f-cat').value));
+  $('#f-color-swatches').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === $('#f-color').value));
+  const n = $('#f-color').value; $('#swatch-name').textContent = n ? n[0].toUpperCase() + n.slice(1) : '';
+}
 $('#f-warmth').innerHTML = WARMTH.map((w, i) => `<button type="button" data-w="${i + 1}">${w}</button>`).join('');
 $('#f-warmth').querySelectorAll('button').forEach(b => b.onclick = () => setWarmth(+b.dataset.w));
 function setWarmth(w) {
@@ -278,6 +291,7 @@ function openSheet(item) {
     $('#f-rain').checked = !!item.rainOk;
     $('#f-name').value = item.name || '';
     setWarmth(item.warmth);
+    syncPickers();
   }
   $('#sheet').classList.remove('hidden');
 }
@@ -301,6 +315,7 @@ async function handlePhoto(file) {
   $('#f-name').value = '';
   setWarmth(CATS.haut.warmth);
   $('#f-color').value = await detectColor(original);
+  syncPickers();
   $('#f-save').disabled = true;
   $('#cut-status').innerHTML = '<span class="spinner"></span>Détourage en cours… (la première fois, ça peut prendre une minute)';
   try {
@@ -310,6 +325,7 @@ async function handlePhoto(file) {
     ed.image = cut;
     $('#edit-img').src = URL.createObjectURL(cut);
     $('#f-color').value = await detectColor(cut);
+    syncPickers();
     $('#cut-status').textContent = 'Fond retiré ✓';
     $('#toggle-cut').classList.remove('hidden');
     $('#toggle-cut').textContent = "Garder la photo d'origine";
@@ -445,27 +461,28 @@ function renderWeather(stale = false) {
   const w = state.weather, cur = w.current, d = w.daily;
   const [icon, txt] = WMO[cur.weather_code] || ['🌡️', ''];
   $('#weather').innerHTML = `
-    <div class="now">
-      <div class="icon">${cur.is_day === 0 && cur.weather_code <= 1 ? '🌙' : icon}</div>
-      <div>
-        <div class="temp">${Math.round(cur.temperature_2m)}°</div>
-        <div class="place">${esc(state.loc?.name || '')}</div>
-      </div>
-      <div style="margin-left:auto;text-align:right" class="small">
-        <div>${txt}</div>
-        <div class="muted">${Math.round(d.temperature_2m_min[0])}° / ${Math.round(d.temperature_2m_max[0])}°</div>
+    <div class="wx-main">
+      <div class="wx-icon">${cur.is_day === 0 && cur.weather_code <= 1 ? '🌙' : icon}</div>
+      <div class="wx-temp">${Math.round(cur.temperature_2m)}°</div>
+      <div class="wx-side">
+        <div class="cond">${txt}</div>
+        <div class="range">${Math.round(d.temperature_2m_min[0])}° / ${Math.round(d.temperature_2m_max[0])}°</div>
       </div>
     </div>
-    <div class="details">
-      <span>Ressenti ${Math.round(cur.apparent_temperature)}°</span>
-      <span>💨 ${Math.round(cur.wind_speed_10m)} km/h</span>
-      <span>☔ ${d.precipitation_probability_max[0] ?? 0} %</span>
-      ${stale ? '<span>(hors ligne)</span>' : ''}
-    </div>
-    ${state.loc?.mode === 'gps' ? '<button class="link small" id="refresh-gps">📍 Mettre à jour ma position</button>' : ''}`;
+    <div class="wx-pills">
+      <span class="pill">Ressenti ${Math.round(cur.apparent_temperature)}°</span>
+      <span class="pill">💨 ${Math.round(cur.wind_speed_10m)} km/h</span>
+      <span class="pill">☔ ${d.precipitation_probability_max[0] ?? 0} %</span>
+      ${stale ? '<span class="pill">hors ligne</span>' : ''}
+      ${state.loc?.mode === 'gps' ? '<span class="pill btn" id="refresh-gps"><svg class="ic"><use href="#i-pin"/></svg>Actualiser</span>' : ''}
+    </div>`;
   $('#refresh-gps') && ($('#refresh-gps').onclick = () => loadWeather(true, true));
+  renderKicker();
 }
-
+function renderKicker() {
+  const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#today-kicker').textContent = date[0].toUpperCase() + date.slice(1) + (state.loc?.name ? ' · ' + state.loc.name : '');
+}
 // ---------- Suggestions de tenues ----------
 // Pour chaque type de pièce : chaleur voulue [min, max] et si elle est nécessaire
 function planFor(w) {
@@ -554,21 +571,43 @@ function buildOutfit() {
 
 function suggest() {
   if (!state.items.length) {
-    $('#stage').innerHTML = mannequinSvg() + `<div class="missing" style="top:45%">Ajoute des vêtements dans l'onglet Garde-robe</div>`;
+    $('#stage').innerHTML = mannequinSvg() + `<div class="missing" style="top:45%">Ajoute des vêtements dans « Dressing »</div>`;
     $('#outfit-hint').textContent = '';
+    $('#pieces-strip').innerHTML = '';
     state.current = null;
+    updateSaveBtn();
     return;
   }
   const { best, plan } = buildOutfit();
   if (!best) return;
   state.seen.add(best.key);
   state.current = { pieces: best.pieces };
-  $('#outfit-hint').textContent = plan.hint;
+  const w = weatherSummary();
+  $('#outfit-hint').innerHTML = state.weather ? `<b>${Math.round(w.feels)}° ressentis.</b> ${esc(plan.hint)}` : esc(plan.hint);
   renderStage();
   $('#ai-result').innerHTML = '';
   $('#ai-status').textContent = '';
 }
-$('#btn-another').onclick = suggest;
+// Petite animation entre deux idées
+function animateSuggest(dir = -1) {
+  const st = $('#stage');
+  st.style.setProperty('--dx', `${dir * 40}px`);
+  st.classList.add('out');
+  setTimeout(() => { suggest(); st.style.setProperty('--dx', `${-dir * 40}px`); requestAnimationFrame(() => st.classList.remove('out')); }, 180);
+}
+$('#btn-another').onclick = () => animateSuggest(-1);
+// Glisser sur le mannequin = une autre idée
+{
+  let x0 = null, y0 = null;
+  const st = $('#stage');
+  st.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  st.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && state.items.length) { st.dataset.swiped = '1'; animateSuggest(dx < 0 ? -1 : 1); setTimeout(() => delete st.dataset.swiped, 400); }
+  });
+}
 
 // Change une seule pièce (touchée sur le mannequin)
 function swapPiece(slot) {
@@ -582,11 +621,12 @@ function swapPiece(slot) {
   state.current.aiImage = null; state.current.savedId = null;
   $('#ai-result').innerHTML = '';
   renderStage();
+  navigator.vibrate?.(10);
 }
 
 function mannequinSvg() {
   return `<svg class="mannequin" viewBox="0 0 300 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <g fill="#e2d6c8">
+    <g fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.12)" stroke-width="1.2">
       <ellipse cx="150" cy="52" rx="24" ry="29"/>
       <rect x="140" y="76" width="20" height="18" rx="6"/>
       <path d="M104 98 Q150 86 196 98 L206 150 Q200 200 192 232 L108 232 Q100 200 94 150 Z"/>
@@ -594,8 +634,8 @@ function mannequinSvg() {
       <path d="M196 100 Q214 106 218 130 L230 230 Q232 244 222 246 Q214 246 212 232 L198 150 Z"/>
       <path d="M108 228 L192 228 L190 270 L176 430 Q174 442 164 442 Q156 442 155 430 L152 290 L148 290 L145 430 Q144 442 136 442 Q126 442 124 430 L110 270 Z"/>
     </g>
-    <rect x="146" y="446" width="8" height="34" fill="#cbbcaa"/>
-    <ellipse cx="150" cy="484" rx="46" ry="7" fill="#cbbcaa"/>
+    <rect x="146" y="446" width="8" height="34" fill="rgba(255,255,255,.12)"/>
+    <ellipse cx="150" cy="484" rx="46" ry="7" fill="rgba(255,255,255,.1)"/>
   </svg>`;
 }
 function renderStage() {
@@ -612,14 +652,14 @@ function renderStage() {
   if (!p.top && !p.dress) html += `<div class="missing" style="top:30%">Ajoute un haut</div>`;
   if (!p.bottom && !p.dress) html += `<div class="missing" style="top:62%">Ajoute un bas</div>`;
   stage.innerHTML = html;
-  stage.querySelectorAll('.piece').forEach(el => el.onclick = () => swapPiece(el.dataset.slot));
+  stage.querySelectorAll('.piece').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) swapPiece(el.dataset.slot); });
   // Liste des pièces sous le mannequin
-  let strip = stage.parentElement.querySelector('.minis-strip');
-  if (!strip) { strip = document.createElement('div'); strip.className = 'chips minis-strip'; stage.after(strip); }
-  strip.innerHTML = SLOT_ORDER.filter(s => p[s]).map(s => {
+  const strip = $('#pieces-strip');
+  strip.innerHTML = SLOT_ORDER.filter(s => p[s] && state.items.find(i => i.id === p[s])).map(s => {
     const it = state.items.find(i => i.id === p[s]);
-    return `<button data-slot="${s}">${esc(SLOT_NAME[s])} · ${esc(it.color)}</button>`;
+    return `<button data-slot="${s}"><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || it.color)}</span></button>`;
   }).join('');
+  updateSaveBtn();
   strip.querySelectorAll('button').forEach(b => b.onclick = () => swapPiece(b.dataset.slot));
 }
 
@@ -667,60 +707,83 @@ async function saveCurrent(silent = false) {
   await db.put('outfits', outfit);
   if (!existing) state.outfits.push(outfit);
   cur.savedId = outfit.id;
+  updateSaveBtn();
   if (!silent) toast('Tenue sauvegardée dans « Tenues » ✓');
   return outfit;
 }
-$('#btn-save').onclick = () => saveCurrent();
+function updateSaveBtn() {
+  const saved = !!state.current?.savedId;
+  $('#btn-save').classList.toggle('saved', saved);
+  $('#btn-save').setAttribute('aria-label', saved ? 'Tenue sauvegardée' : 'Sauvegarder');
+}
+$('#btn-save').onclick = async () => {
+  if (!state.current) return;
+  if (state.current.savedId) { toast('Déjà dans « Tenues » ✓'); return; }
+  await saveCurrent();
+  navigator.vibrate?.(15);
+};
 
+const outfitDate = o => new Date(o.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const outfitTitle = o => o.name || 'Tenue du ' + outfitDate(o);
 function renderLibrary() {
   const list = [...state.outfits].sort((a, b) => b.createdAt - a.createdAt);
   $('#library-empty').classList.toggle('hidden', list.length > 0);
+  $('#library-kicker').textContent = list.length ? `${list.length} tenue${list.length > 1 ? 's' : ''} sauvegardée${list.length > 1 ? 's' : ''}` : 'Ta bibliothèque';
   $('#library-list').innerHTML = list.map(o => {
     const main = o.aiImage || o.preview;
-    const minis = SLOT_ORDER.filter(s => o.pieces[s]).map(s => state.items.find(i => i.id === o.pieces[s])).filter(Boolean);
-    const date = new Date(o.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     const wx = o.weather ? ` · ${(WMO[o.weather.code] || [''])[0]} ${o.weather.temp}°` : '';
-    return `<div class="card saved" data-id="${o.id}">
-      <div class="thumb" data-act="view">${main ? `<img src="${blobUrl('o-' + o.id + (o.aiImage ? '-ai' : ''), main)}" alt="">` : ''}</div>
-      <div class="info">
-        <div class="name">${esc(o.name || 'Tenue du ' + date)}</div>
-        <div class="muted small">${date}${wx}${o.aiImage ? ' · ✨ image' : ''}</div>
-        <div class="minis">${minis.map(i => `<img src="${itemUrl(i)}" alt="">`).join('')}</div>
-        <div class="actions">
-          <button data-act="wear">Porter</button>
-          <label class="filebtn">+ Image<input type="file" accept="image/*" hidden data-act="img"></label>
-          <button data-act="rename">Renommer</button>
-          <button data-act="del" class="danger">Suppr.</button>
-        </div>
-      </div>
+    return `<div class="lcard" data-id="${o.id}">
+      <div class="img">${main ? `<img src="${blobUrl('o-' + o.id + (o.aiImage ? '-ai' : ''), main)}" alt="">` : ''}${o.aiImage ? '<span class="ai">✨ IA</span>' : ''}</div>
+      <div class="meta"><b>${esc(outfitTitle(o))}</b><span>${outfitDate(o)}${wx}</span></div>
     </div>`;
   }).join('');
-  $('#library-list').querySelectorAll('.saved').forEach(card => {
-    const o = state.outfits.find(x => x.id === card.dataset.id);
-    card.querySelector('[data-act=view]').onclick = () => viewImage(o.aiImage || o.preview);
-    card.querySelector('[data-act=wear]').onclick = () => {
-      state.current = { pieces: { ...o.pieces }, savedId: o.id, aiImage: o.aiImage || null };
-      showTab('today'); renderStage();
-      $('#ai-result').innerHTML = o.aiImage ? `<img src="${blobUrl('o-' + o.id + '-ai', o.aiImage)}" alt="">` : '';
-    };
-    card.querySelector('[data-act=img]').onchange = async e => {
-      const f = e.target.files[0]; if (!f) return;
-      o.aiImage = await downscale(f, 1400);
-      await db.put('outfits', o); renderLibrary(); toast('Image ajoutée ✓');
-    };
-    card.querySelector('[data-act=rename]').onclick = async () => {
-      const n = prompt('Nom de la tenue', o.name || ''); if (n === null) return;
-      o.name = n.trim(); await db.put('outfits', o); renderLibrary();
-    };
-    card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm('Supprimer cette tenue de la bibliothèque ?')) return;
-      await db.del('outfits', o.id);
-      state.outfits = state.outfits.filter(x => x.id !== o.id);
-      if (state.current?.savedId === o.id) state.current.savedId = null;
-      renderLibrary();
-    };
-  });
+  $('#library-list').querySelectorAll('.lcard').forEach(card => card.onclick = () => openOutfit(state.outfits.find(x => x.id === card.dataset.id)));
 }
+let openedOutfit = null;
+function openOutfit(o) {
+  openedOutfit = o;
+  $('#o-title').textContent = outfitTitle(o);
+  const wx = o.weather ? ` · ${(WMO[o.weather.code] || [''])[0]} ${o.weather.temp}°${o.weather.place ? ' à ' + esc(o.weather.place) : ''}` : '';
+  $('#o-meta').innerHTML = `Sauvegardée le ${outfitDate(o)}${wx}`;
+  const imgs = [o.aiImage && blobUrl('o-' + o.id + '-ai', o.aiImage), o.preview && blobUrl('o-' + o.id, o.preview)].filter(Boolean);
+  $('#o-images').innerHTML = imgs.map(u => `<img src="${u}" alt="">`).join('');
+  $('#o-images').querySelectorAll('img').forEach((im, k) => im.onclick = () => viewImage(k === 0 && o.aiImage ? o.aiImage : o.preview));
+  $('#o-minis').innerHTML = SLOT_ORDER.filter(s => o.pieces[s]).map(s => {
+    const it = state.items.find(i => i.id === o.pieces[s]);
+    return it ? `<button><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || it.color)}</span></button>` : '';
+  }).join('');
+  $('#osheet').classList.remove('hidden');
+}
+const closeOutfit = () => { $('#osheet').classList.add('hidden'); openedOutfit = null; };
+$('#o-close').onclick = closeOutfit;
+$('#osheet').onclick = e => { if (e.target.id === 'osheet') closeOutfit(); };
+$('#o-wear').onclick = () => {
+  const o = openedOutfit;
+  state.current = { pieces: { ...o.pieces }, savedId: o.id, aiImage: o.aiImage || null };
+  closeOutfit(); showTab('today'); renderStage();
+  $('#outfit-hint').textContent = outfitTitle(o);
+  $('#ai-result').innerHTML = o.aiImage ? `<img src="${blobUrl('o-' + o.id + '-ai', o.aiImage)}" alt="">` : '';
+};
+$('#o-img').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const o = openedOutfit;
+  o.aiImage = await downscale(f, 1400);
+  await db.put('outfits', o); e.target.value = '';
+  renderLibrary(); openOutfit(o); toast('Image ajoutée ✓');
+};
+$('#o-rename').onclick = async () => {
+  const o = openedOutfit;
+  const n = prompt('Nom de la tenue', o.name || ''); if (n === null) return;
+  o.name = n.trim(); await db.put('outfits', o); renderLibrary(); openOutfit(o);
+};
+$('#o-del').onclick = async () => {
+  const o = openedOutfit;
+  if (!confirm('Supprimer cette tenue de la bibliothèque ?')) return;
+  await db.del('outfits', o.id);
+  state.outfits = state.outfits.filter(x => x.id !== o.id);
+  if (state.current?.savedId === o.id) { state.current.savedId = null; updateSaveBtn(); }
+  closeOutfit(); renderLibrary();
+};
 function viewImage(blob) {
   if (!blob) return;
   const v = document.createElement('div');
@@ -748,7 +811,7 @@ $('#btn-gemini').onclick = async () => {
     toast('Consigne copiée. Enregistre l\'image et envoie-la à Gemini.', 5000);
   }
   await saveCurrent(true);
-  toast('Tenue ajoutée à « Tenues ». Tu pourras y joindre l\'image de Gemini (+ Image).', 5000);
+  toast('Tenue ajoutée à « Tenues ». Tu pourras y joindre l\'image de Gemini.', 5000);
 };
 
 // ---------- Essayage IA (Hugging Face, gratuit avec quota) ----------
@@ -887,6 +950,7 @@ async function init() {
   showPerson(await kv.get('person'));
   $('#fab-add').classList.add('hidden');
   renderWardrobe();
+  renderKicker();
   storageInfo();
   loadWeather();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
