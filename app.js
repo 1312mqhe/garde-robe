@@ -7,14 +7,17 @@ const DEFAULT_SPACE = 'yisol/IDM-VTON';
 
 // ---------- Données de référence ----------
 const CATS = {
-  haut:       { label: 'Haut (t-shirt, chemise, top)', short: 'Haut', slot: 'top', warmth: 2 },
+  haut:       { label: 'T-shirt, top, polo', short: 'Haut', slot: 'top', warmth: 2 },
+  chemise:    { label: 'Chemise, chemisier', short: 'Chemise', slot: 'top', warmth: 2 },
   pull:       { label: 'Pull, sweat, gilet', short: 'Pull', slot: 'mid', warmth: 3 },
   veste:      { label: 'Veste légère, blazer', short: 'Veste', slot: 'outer', warmth: 2 },
   manteau:    { label: 'Manteau, doudoune', short: 'Manteau', slot: 'outer', warmth: 4 },
   bas:        { label: 'Pantalon, jupe, short', short: 'Bas', slot: 'bottom', warmth: 3 },
   robe:       { label: 'Robe, combinaison', short: 'Robe', slot: 'dress', warmth: 2 },
   chaussures: { label: 'Chaussures', short: 'Chaussures', slot: 'shoes', warmth: 3 },
-  accessoire: { label: 'Écharpe, bonnet, gants', short: 'Accessoire', slot: 'acc', warmth: 4 },
+  accessoire: { label: 'Écharpe, bonnet, gants', short: 'Écharpe…', slot: 'acc', warmth: 4 },
+  cravate:    { label: 'Cravate, nœud papillon', short: 'Cravate', slot: 'tie', warmth: 3 },
+  style:      { label: 'Ceinture, sac, bijou, casquette', short: 'Accessoire', slot: 'style', warmth: 3 },
 };
 const WARMTH = ['Très léger', 'Léger', 'Moyen', 'Chaud', 'Très chaud'];
 
@@ -41,15 +44,25 @@ const COLORS = [
 const colorById = id => COLORS.find(c => c.id === id) || COLORS[0];
 // Associations de couleurs vives qui vont bien ensemble
 const GOOD_PAIRS = [
-  ['bleu', 'bleu clair'], ['bleu clair', 'rose'], ['bordeaux', 'rose'], ['vert', 'bleu clair'],
-  ['jaune', 'bleu'], ['orange', 'bleu'], ['rouge', 'bleu clair'], ['violet', 'rose'], ['vert', 'jaune'],
+  ['bleu', 'bleu clair'], ['bleu clair', 'rose'], ['bordeaux', 'rose'], ['vert', 'bleu clair'], ['bordeaux', 'bleu clair'],
+  ['jaune', 'bleu'], ['orange', 'bleu'], ['rouge', 'bleu clair'], ['violet', 'rose'], ['vert', 'jaune'], ['vert', 'rose'], ['jaune', 'bleu clair'],
 ];
+// Couleurs vives qui se heurtent
+const CLASH_PAIRS = [
+  ['rouge', 'rose'], ['rouge', 'orange'], ['rouge', 'bordeaux'], ['rouge', 'violet'], ['rouge', 'vert'], ['orange', 'rose'],
+  ['orange', 'violet'], ['orange', 'bordeaux'], ['jaune', 'violet'], ['jaune', 'rose'], ['vert', 'violet'], ['jaune', 'orange'],
+];
+// Neutres qu'on évite traditionnellement d'associer
+const NEUTRAL_AVOID = [['noir', 'marron'], ['noir', 'bleu marine'], ['marron', 'gris']];
+const inPairs = (list, a, b) => list.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 
 // Zones des pièces sur le mannequin (en % du cadre) et ordre d'empilement
 // Les couches se superposent comme une veste ouverte : la plus chaude derrière et plus large,
 // la plus fine devant et plus étroite, pour que chaque pièce reste visible.
 const LAYOUT = {
   acc:    { l: 34, t: 12, w: 32, h: 12, z: 8 },
+  tie:    { l: 44, t: 20, w: 12, h: 22, z: 6 },
+  style:  { l: 70, t: 44, w: 24, h: 18, z: 9 },
   outer:  { l: 14, t: 17, w: 72, h: 44, z: 3 },
   mid:    { l: 21, t: 18.5, w: 58, h: 33, z: 4 },
   top:    { l: 29, t: 20, w: 42, h: 28, z: 5 },
@@ -57,8 +70,8 @@ const LAYOUT = {
   bottom: { l: 26, t: 46, w: 48, h: 41, z: 2 },
   shoes:  { l: 25, t: 86, w: 50, h: 12, z: 1 },
 };
-const SLOT_ORDER = ['acc', 'outer', 'mid', 'top', 'dress', 'bottom', 'shoes'];
-const SLOT_NAME = { acc: 'Accessoire', outer: 'Veste/manteau', mid: 'Pull', top: 'Haut', dress: 'Robe', bottom: 'Bas', shoes: 'Chaussures' };
+const SLOT_ORDER = ['acc', 'outer', 'mid', 'top', 'tie', 'dress', 'bottom', 'shoes', 'style'];
+const SLOT_NAME = { acc: 'Écharpe…', outer: 'Veste/manteau', mid: 'Pull', top: 'Haut', tie: 'Cravate', dress: 'Robe', bottom: 'Bas', shoes: 'Chaussures', style: 'Accessoire' };
 
 // ---------- Petite base IndexedDB ----------
 const db = {
@@ -104,6 +117,10 @@ const state = {
   current: null,      // { pieces: {slot: itemId}, aiImage?: Blob, savedId?: string }
   seen: new Set(),    // tenues déjà proposées aujourd'hui
   filter: 'tout',
+  journal: [],
+  prefs: { aff: {}, liked: [], disliked: [] },
+  ideaIdx: 0,
+  view: (() => { try { return localStorage.getItem('view') || 'mannequin'; } catch { return 'mannequin'; } })(),
   editing: null,      // vêtement en cours d'édition
 };
 const urlCache = new Map();
@@ -233,19 +250,31 @@ async function removeBackground(blob, onProgress) {
 function renderFilters() {
   const count = c => c === 'tout' ? state.items.length : state.items.filter(i => i.category === c).length;
   const cats = ['tout', ...Object.keys(CATS).filter(c => count(c) > 0 || c === state.filter)];
+  const nForgot = forgottenItems().length;
   $('#filter-chips').innerHTML = cats.map(c =>
-    `<button data-c="${c}" class="${state.filter === c ? 'on' : ''}">${c === 'tout' ? 'Tout' : CATS[c].short}<span class="n">${count(c)}</span></button>`).join('');
+    `<button data-c="${c}" class="${state.filter === c ? 'on' : ''}">${c === 'tout' ? 'Tout' : CATS[c].short}<span class="n">${count(c)}</span></button>`).join('')
+    + (nForgot ? `<button data-c="oublies" class="forgot ${state.filter === 'oublies' ? 'on' : ''}">💤 Oubliés<span class="n">${nForgot}</span></button>` : '');
   $('#filter-chips').querySelectorAll('button').forEach(b => b.onclick = () => { state.filter = b.dataset.c; renderWardrobe(); });
 }
 function renderWardrobe() {
   renderFilters();
-  const list = state.items.filter(i => state.filter === 'tout' || i.category === state.filter)
+  const forgot = state.filter === 'oublies';
+  if (forgot && !forgottenItems().length) state.filter = 'tout';
+  const worn = lastWornMap();
+  const list = forgot ? forgottenItems() : state.items.filter(i => state.filter === 'tout' || i.category === state.filter)
     .sort((a, b) => Object.keys(CATS).indexOf(a.category) - Object.keys(CATS).indexOf(b.category) || b.createdAt - a.createdAt);
   $('#wardrobe-empty').classList.toggle('hidden', state.items.length > 0);
   $('#wardrobe-grid').innerHTML = list.map(i =>
-    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="dot" style="background:${swatchCss(i.color)}"></span></div>`).join('');
+    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="dot" style="background:${swatchCss(i.color)}"></span>${forgot ? `<span class="ago">${worn[i.id] ? 'il y a ' + daysSince(worn[i.id]) + ' j' : 'jamais portée'}</span>` : ''}</div>`).join('');
   $('#wardrobe-kicker').textContent = state.items.length ? `${state.items.length} vêtement${state.items.length > 1 ? 's' : ''}` : 'Ta garde-robe';
   $('#wardrobe-grid').querySelectorAll('.tile').forEach(t => t.onclick = () => openSheet(state.items.find(i => i.id === t.dataset.id)));
+}
+
+// Pièces pas portées depuis 30 jours (ou jamais, si elles sont dans le dressing depuis plus de 2 semaines)
+function forgottenItems() {
+  const worn = lastWornMap();
+  return state.items.filter(i => worn[i.id] ? daysSince(worn[i.id]) > 30 : Date.now() - i.createdAt > 14 * DAY)
+    .sort((a, b) => (worn[a.id] || '').localeCompare(worn[b.id] || '') || a.createdAt - b.createdAt);
 }
 
 // Feuille d'ajout / édition
@@ -285,7 +314,11 @@ function openSheet(item) {
   $('#f-delete').classList.toggle('hidden', !item);
   $('#toggle-cut').classList.add('hidden');
   $('#cut-status').textContent = '';
+  $('#item-stats').classList.toggle('hidden', !item);
   if (item) {
+    const n = state.journal.filter(e => Object.values(e.pieces).includes(item.id)).length;
+    const last = lastWornMap()[item.id];
+    $('#item-stats').textContent = n ? `Portée ${n} fois · dernière fois ${new Date(last).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : 'Jamais portée pour l\'instant';
     $('#edit-img').src = itemUrl(item);
     $('#f-cat').value = item.category;
     $('#f-color').value = item.color;
@@ -426,11 +459,12 @@ async function loadWeather(force = false, refreshGps = false) {
     state.loc = loc;
     $('#loc-current').textContent = `Lieu actuel : ${loc.name}${loc.mode === 'gps' ? ' (position)' : ''}`;
     const cached = await kv.get('weather');
-    if (!force && cached && cached.lat === loc.lat && cached.lon === loc.lon && Date.now() - cached.at < 30 * 60 * 1000) {
+    if (!force && cached && cached.data?.hourly && cached.lat === loc.lat && cached.lon === loc.lon && Date.now() - cached.at < 30 * 60 * 1000) {
       state.weather = cached.data;
     } else {
       const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
         `&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day` +
+        `&hourly=temperature_2m,apparent_temperature,precipitation_probability` +
         `&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,weather_code` +
         `&timezone=auto&forecast_days=1`;
       const r = await fetch(u);
@@ -448,15 +482,35 @@ async function loadWeather(force = false, refreshGps = false) {
   }
   suggest();
 }
+// Températures ressenties du matin (7-10 h), de l'après-midi (12-17 h) et du soir (18-22 h)
+function dayParts() {
+  const h = state.weather?.hourly;
+  if (!h?.time) return null;
+  const today = h.time[0].slice(0, 10);
+  const avg = (from, to, key) => {
+    const v = h.time.map((t, i) => [t, h[key][i]]).filter(([t]) => t.startsWith(today) && +t.slice(11, 13) >= from && +t.slice(11, 13) <= to).map(x => x[1]);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const parts = { morning: [7, 10], afternoon: [12, 17], evening: [18, 22] };
+  const out = {};
+  for (const [k, [f, t]] of Object.entries(parts)) out[k] = { temp: avg(f, t, 'temperature_2m'), feels: avg(f, t, 'apparent_temperature') };
+  return out.morning.temp === null ? null : out;
+}
 function weatherSummary() {
   const w = state.weather;
-  if (!w) return { feels: 17, rain: false, wind: 10, snow: false, label: 'météo inconnue' };
+  if (!w) return { feels: 17, cold: 17, warm: 17, spread: 0, rain: false, wind: 10, snow: false };
   const cur = w.current, d = w.daily;
   const dayFeels = (d.apparent_temperature_max[0] + d.apparent_temperature_min[0]) / 2;
   const feels = cur.apparent_temperature * 0.6 + dayFeels * 0.4;
   const rain = isWetCode(cur.weather_code) || cur.precipitation > 0 || (d.precipitation_probability_max[0] ?? 0) >= 50 || isWetCode(d.weather_code[0]);
   const snow = isSnowCode(cur.weather_code) || isSnowCode(d.weather_code[0]);
-  return { feels, rain: rain || snow, snow, wind: cur.wind_speed_10m };
+  const parts = dayParts();
+  // Le moment le plus froid décide des couches ; le plus chaud, de la pièce de base
+  const hour = new Date().getHours();
+  const pf = parts ? [hour <= 11 && parts.morning.feels, hour <= 17 && parts.afternoon.feels, parts.evening.feels].filter(x => x !== false && x !== null) : [];
+  const cold = pf.length ? Math.min(...pf) : feels;
+  const warm = pf.length ? Math.max(...pf) : feels;
+  return { feels, cold, warm, spread: warm - cold, parts, rain: rain || snow, snow, wind: cur.wind_speed_10m };
 }
 function renderWeather(stale = false) {
   const w = state.weather, cur = w.current, d = w.daily;
@@ -474,6 +528,7 @@ function renderWeather(stale = false) {
       <span class="pill">Ressenti ${Math.round(cur.apparent_temperature)}°</span>
       <span class="pill">💨 ${Math.round(cur.wind_speed_10m)} km/h</span>
       <span class="pill">☔ ${d.precipitation_probability_max[0] ?? 0} %</span>
+      ${(() => { const p = dayParts(); return p ? `<span class="pill">Matin ${Math.round(p.morning.temp)}°</span><span class="pill">Après-midi ${Math.round(p.afternoon.temp)}°</span><span class="pill">Soir ${Math.round(p.evening.temp)}°</span>` : ''; })()}
       ${stale ? '<span class="pill">hors ligne</span>' : ''}
       ${state.loc?.mode === 'gps' ? '<span class="pill btn" id="refresh-gps"><svg class="ic"><use href="#i-pin"/></svg>Actualiser</span>' : ''}
     </div>`;
@@ -499,13 +554,14 @@ function renderAssistantLine(plan) {
   const t = Math.round(cur.temperature_2m), f = Math.round(cur.apparent_temperature);
   const place = state.loc?.name ? ` à ${esc(state.loc.name)}` : '';
   let mood;
-  if (w.feels >= 25) mood = 'Il fait chaud, je t\'ai choisi des pièces légères.';
-  else if (w.feels >= 20) mood = 'Temps doux, parfait pour une tenue légère.';
-  else if (w.feels >= 15) mood = 'Il fait frais, j\'ai ajouté une couche à retirer si besoin.';
-  else if (w.feels >= 9) mood = 'Il fait frais, je t\'ai préparé une tenue en plusieurs couches.';
-  else if (w.feels >= 3) mood = 'Il fait froid, manteau obligatoire !';
+  if (w.cold >= 25) mood = 'Il fait chaud, je t\'ai choisi des pièces légères.';
+  else if (w.cold >= 20) mood = 'Temps doux, parfait pour une tenue légère.';
+  else if (w.cold >= 15) mood = 'Il fait frais, j\'ai ajouté une couche à retirer si besoin.';
+  else if (w.cold >= 9) mood = 'Il fait frais, je t\'ai préparé une tenue en plusieurs couches.';
+  else if (w.cold >= 3) mood = 'Il fait froid, manteau obligatoire !';
   else mood = 'Grand froid aujourd\'hui, couvre-toi bien.';
-  const extra = w.snow ? ' Neige prévue, prévois de bonnes chaussures.' : w.rain ? ' Pluie prévue, pense au parapluie ☔' : w.wind > 35 ? ' Ça souffle fort, évite les tissus trop légers.' : '';
+  let extra = w.snow ? ' Neige prévue, prévois de bonnes chaussures.' : w.rain ? ' Pluie prévue, pense au parapluie ☔' : w.wind > 35 ? ' Ça souffle fort, évite les tissus trop légers.' : '';
+  if (w.spread >= 6 && w.parts) extra += ` Gros écart dans la journée (${Math.round(w.parts.morning.temp)}° le matin, ${Math.round(w.parts.afternoon.temp)}° l'après-midi) : garde une couche facile à enlever.`;
   el.innerHTML = `<b>${t}°${f !== t ? ` (${f}° ressentis)` : ''}</b>${place}. ${mood}${extra}`;
 }
 
@@ -595,92 +651,171 @@ function renderKicker() {
   $('#today-kicker').textContent = date[0].toUpperCase() + date.slice(1) + (state.loc?.name ? ' · ' + state.loc.name : '');
 }
 // ---------- Suggestions de tenues ----------
-// Pour chaque type de pièce : chaleur voulue [min, max] et si elle est nécessaire
+// Aucune part de hasard : toutes les combinaisons possibles sont notées selon des règles de mode
+// (couleurs, superposition, météo, rotation des pièces, tes goûts), puis classées de la meilleure à la moins bonne.
+
+// Besoin de chaque type de pièce selon la température ressentie : plage de chaleur et caractère obligatoire
 function planFor(w) {
-  const t = w.feels;
+  const t = w.cold;
   let p;
-  if (t >= 25) p = { top: [1, 2], bottom: [1, 2], dress: [1, 2], mid: null, outer: null, shoes: [1, 3], acc: null, hint: 'Il fait chaud : tenue légère.' };
-  else if (t >= 20) p = { top: [1, 3], bottom: [1, 3], dress: [1, 3], mid: null, outer: w.wind > 30 ? [1, 2] : null, shoes: [1, 3], acc: null, hint: 'Temps doux.' };
-  else if (t >= 15) p = { top: [1, 3], bottom: [2, 4], dress: [1, 3], layer: true, mid: [2, 3], outer: [1, 2], shoes: [2, 4], acc: null, hint: 'Prévois une couche en plus.' };
-  else if (t >= 9) p = { top: [1, 3], bottom: [2, 5], dress: [2, 4], mid: [2, 4], outer: [2, 4], shoes: [2, 5], acc: null, hint: 'Frais : superpose les couches.' };
-  else if (t >= 3) p = { top: [1, 4], bottom: [3, 5], dress: [3, 5], mid: [3, 5], outer: [3, 5], shoes: [3, 5], acc: [3, 5], hint: 'Froid : manteau conseillé.' };
-  else p = { top: [2, 5], bottom: [3, 5], dress: [4, 5], mid: [3, 5], outer: [4, 5], shoes: [3, 5], acc: [4, 5], hint: 'Très froid : couvre-toi bien.' };
-  if (w.rain) { p.outer = p.outer || [1, 3]; p.hint += ' Pluie prévue : imperméable conseillé.'; }
+  if (t >= 25) p = { top: [1, 2], bottom: [1, 2], dress: [1, 2], shoes: [1, 3], hint: 'Il fait chaud : tenue légère.' };
+  else if (t >= 20) p = { top: [1, 3], bottom: [1, 3], dress: [1, 3], shoes: [1, 3], outer: w.wind > 30 ? { r: [1, 2], opt: true } : null, hint: 'Temps doux.' };
+  else if (t >= 15) p = { top: [1, 3], bottom: [2, 4], dress: [1, 3], shoes: [2, 4], mid: { r: [2, 3], opt: true }, outer: { r: [1, 3], opt: true }, oneLayer: true, hint: 'Une couche en plus, à enlever si besoin.' };
+  else if (t >= 9) p = { top: [1, 3], bottom: [2, 5], dress: [2, 4], shoes: [2, 5], mid: { r: [2, 4], opt: true }, outer: { r: [2, 4] }, hint: 'Frais : superpose les couches.' };
+  else if (t >= 3) p = { top: [1, 4], bottom: [3, 5], dress: [3, 5], shoes: [3, 5], mid: { r: [3, 5] }, outer: { r: [3, 5] }, acc: { r: [3, 5], opt: true }, hint: 'Froid : manteau conseillé.' };
+  else p = { top: [2, 5], bottom: [3, 5], dress: [4, 5], shoes: [3, 5], mid: { r: [3, 5] }, outer: { r: [4, 5] }, acc: { r: [4, 5] }, hint: 'Très froid : couvre-toi bien.' };
+  // Grand écart dans la journée : la pièce de base suit le moment le plus chaud
+  if (w.spread >= 6) {
+    const warm = planFor({ ...w, cold: w.warm, spread: 0 });
+    p.top = warm.top; p.dress = warm.dress;
+    if (p.outer) p.outer.opt = false;
+  }
+  if (w.rain) { p.outer = p.outer ? { ...p.outer, opt: false } : { r: [1, 3] }; p.hint += ' Pluie prévue : imperméable conseillé.'; }
   return p;
 }
+const rangeOf = x => Array.isArray(x) ? x : x?.r;
 function warmthFit(item, range) {
   if (!range) return 0;
   const [a, b] = range;
-  if (item.warmth >= a && item.warmth <= b) return 2;
-  return -Math.min(Math.abs(item.warmth - a), Math.abs(item.warmth - b)) * 1.5;
+  if (item.warmth >= a && item.warmth <= b) return 1.5;
+  return -Math.min(Math.abs(item.warmth - a), Math.abs(item.warmth - b)) * 2;
 }
-function colorScore(items) {
-  const vivid = [...new Set(items.map(i => i.color).filter(c => !colorById(c).neutral && c !== 'imprimé'))];
-  const prints = items.filter(i => i.color === 'imprimé').length;
+const lum = c => { const r = colorById(c).rgb; return r ? 0.3 * r[0] + 0.59 * r[1] + 0.11 * r[2] : 128; };
+
+// Note d'un duo de couleurs
+function colorPair(a, b) {
+  if (a === 'imprimé' || b === 'imprimé') {
+    if (a === b) return -4;                                     // jamais deux imprimés
+    const other = a === 'imprimé' ? b : a;
+    return colorById(other).neutral ? 0.6 : -1.5;               // un imprimé se porte avec du neutre
+  }
+  const na = colorById(a).neutral, nb = colorById(b).neutral;
+  if (na && nb) {
+    if (a === 'jean' && b === 'jean') return -3;                // pas de total look jean
+    if (inPairs(NEUTRAL_AVOID, a, b)) return -1.2;
+    return a === b ? 0.2 : 0.8;
+  }
+  if (na || nb) return 1;                                       // une couleur vive sur une base neutre
+  if (a === b) return 0.3;                                      // ton sur ton
+  if (inPairs(GOOD_PAIRS, a, b)) return 1;
+  if (inPairs(CLASH_PAIRS, a, b)) return -3;
+  return -1.2;
+}
+const pairKey = (x, y) => x < y ? `${x}|${y}` : `${y}|${x}`;
+const outfitKey = pieces => Object.values(pieces).filter(Boolean).sort().join('|');
+const DAY = 864e5;
+const isoDay = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+
+// Dernière fois que chaque pièce a été portée (d'après le journal)
+function lastWornMap() {
+  const m = {};
+  for (const e of state.journal) for (const id of Object.values(e.pieces)) if (!m[id] || m[id] < e.date) m[id] = e.date;
+  return m;
+}
+function daysSince(dateStr) { return dateStr ? Math.round((new Date(isoDay()) - new Date(dateStr)) / DAY) : Infinity; }
+
+// Note complète d'une tenue, avec les raisons à afficher
+function scoreOutfit(items, ctx) {
+  const { plan, w, worn } = ctx;
   let s = 0;
-  if (prints > 1) s -= 3;
-  if (prints === 1 && vivid.length > 0) s -= 1.5;
-  if (vivid.length === 0) s += prints ? 2 : 1;
-  else if (vivid.length === 1) s += 2.5;
-  else if (vivid.length === 2) s += GOOD_PAIRS.some(([a, b]) => vivid.includes(a) && vivid.includes(b)) ? 1.5 : -2;
-  else s -= 3;
-  // Évite le total look d'une même couleur neutre (sauf noir)
-  const neutrals = items.filter(i => colorById(i.color).neutral).map(i => i.color);
-  if (neutrals.length >= 3 && new Set(neutrals).size === 1 && neutrals[0] !== 'noir') s -= 1;
-  return s;
+  const why = [];
+  // Couleurs : chaque duo de pièces
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+    const A = items[i], B = items[j];
+    if (A.slot === 'shoes' && B.slot === 'shoes') continue;
+    s += colorPair(A.it.color, B.it.color) * (A.slot === 'style' || B.slot === 'style' ? 0.5 : 1);
+    s += Math.max(-3, Math.min(3, (state.prefs.aff[pairKey(A.it.id, B.it.id)] || 0) * 0.8));
+  }
+  const accents = [...new Set(items.filter(x => !colorById(x.it.color).neutral && x.it.color !== 'imprimé').map(x => x.it.color))];
+  if (accents.length === 0) { s += 0.5; why.push('Tout en neutres : élégant et facile à porter.'); }
+  else if (accents.length === 1) { s += 1.5; why.push(`Une seule couleur forte (${accents[0]}) sur une base neutre : la règle d'or.`); }
+  else if (accents.length === 2 && inPairs(GOOD_PAIRS, accents[0], accents[1])) why.push(`${accents[0][0].toUpperCase() + accents[0].slice(1)} et ${accents[1]} : un duo harmonieux.`);
+  else if (accents.length >= 3) s -= 4;                           // trois couleurs vives maximum… deux, c'est mieux
+  const by = Object.fromEntries(items.map(x => [x.slot, x.it]));
+  // Haut et bas : contraste, et pas exactement la même couleur
+  if (by.top && by.bottom) {
+    if (by.top.color === by.bottom.color && by.top.color !== 'noir') s -= 1;
+    else if (lum(by.top.color) > lum(by.bottom.color) + 25) s += 0.4;   // clair en haut, foncé en bas
+  }
+  // Cravate : seulement avec une chemise, idéalement sous une veste
+  if (by.tie) {
+    if (!by.top || by.top.category !== 'chemise') s -= 50;
+    s += by.outer?.category === 'veste' ? 1.5 : -2.5;
+    if (by.outer?.category === 'veste') why.push('Chemise, cravate et veste : allure habillée.');
+  }
+  // Accessoire de style : assorti aux chaussures (règle cuir) ou neutre
+  if (by.style) {
+    s -= 0.4;
+    if (by.shoes && by.style.color === by.shoes.color) { s += 1.2; why.push('Accessoire assorti aux chaussures.'); }
+  }
+  // Superposition : en mi-saison, une seule couche suffit
+  if (plan.oneLayer) s += (by.mid && by.outer) ? -1.5 : (by.mid || by.outer) ? 0.5 : -2;
+  // Chaleur et pluie
+  for (const x of items) {
+    s += warmthFit(x.it, rangeOf(plan[x.slot])) * 0.8;
+    if (w.rain && (x.slot === 'outer' || x.slot === 'shoes')) s += x.it.rainOk ? 1 : -0.8;
+    // Rotation : on évite ce qui a été porté ces derniers jours, on remet en avant les pièces oubliées
+    const d = daysSince(worn[x.it.id]);
+    if (x.slot !== 'shoes' && x.slot !== 'outer') s += d <= 1 ? -3 : d <= 3 ? -1.2 : d <= 7 ? -0.4 : d > 30 ? 0.3 : 0;
+    else s += d <= 1 ? -0.5 : 0;
+  }
+  return { s, why };
 }
-const bySlot = slot => state.items.filter(i => CATS[i.category].slot === slot);
-const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-function candidatesFor(slot, plan, w) {
+const bySlot = slot => state.items.filter(i => CATS[i.category].slot === slot && !state.prefs.hidden?.includes(i.id));
+
+// Pièces possibles pour un emplacement, classées par adéquation à la météo
+function candidatesFor(slot, plan, w, limit = 8) {
   const all = bySlot(slot);
-  if (!all.length) return [];
-  const range = plan[slot] || (slot === 'outer' ? [1, 5] : null);
-  let fit = range ? all.filter(i => warmthFit(i, range) > 0) : all;
-  if (slot === 'outer' && w.rain) { const dry = fit.filter(i => i.rainOk); if (dry.length) fit = dry; }
-  if (slot === 'shoes' && w.rain) { const dry = fit.filter(i => i.rainOk); if (dry.length) fit = dry; }
-  if (!fit.length && range) fit = [...all].sort((a, b) => warmthFit(b, range) - warmthFit(a, range)).slice(0, 3);
-  return fit;
+  const range = rangeOf(plan[slot]);
+  const rank = i => warmthFit(i, range) + ((w.rain && (slot === 'outer' || slot === 'shoes') && i.rainOk) ? 1 : 0);
+  return [...all].sort((a, b) => rank(b) - rank(a) || a.id.localeCompare(b.id)).slice(0, limit);
 }
 
-function buildOutfit() {
+// Construit la liste classée des meilleures tenues (recherche par faisceau, déterministe)
+function buildIdeas() {
   const w = weatherSummary();
   const plan = planFor(w);
-  let best = null;
-  for (let n = 0; n < 150; n++) {
-    const pieces = {};
-    const useDress = bySlot('dress').length && w.feels >= 9 &&
-      (!bySlot('top').length || !bySlot('bottom').length || Math.random() < 0.3);
-    for (const slot of useDress ? ['dress'] : ['top', 'bottom']) {
-      const c = candidatesFor(slot, plan, w); if (c.length) pieces[slot] = pick(c).id;
+  const ctx = { plan, w, worn: lastWornMap() };
+  const disliked = new Set(state.prefs.disliked);
+  const evalP = parts => scoreOutfit(parts, ctx).s;
+  const BEAM = 50;
+  let beams = [];
+  // Base : haut + bas, ou robe
+  for (const t of candidatesFor('top', plan, w)) for (const b of candidatesFor('bottom', plan, w)) beams.push([{ slot: 'top', it: t }, { slot: 'bottom', it: b }]);
+  if (w.cold >= 9 || !beams.length) for (const d of candidatesFor('dress', plan, w)) beams.push([{ slot: 'dress', it: d }]);
+  if (!beams.length) return { ideas: [], plan };
+  const step = (slot, { opt = true, need = null } = {}) => {
+    const cands = candidatesFor(slot, plan, w);
+    if (!cands.length) return;
+    const next = [];
+    for (const b of beams) {
+      if (need && !need(b)) { next.push(b); continue; }
+      if (opt) next.push(b);
+      for (const c of cands) next.push([...b, { slot, it: c }]);
     }
-    // Couches du dessus
-    const wantMid = plan.mid && (!plan.layer || Math.random() < 0.5);
-    const wantOuter = plan.outer && (!plan.layer || !wantMid || w.rain);
-    if (wantMid) { const c = candidatesFor('mid', plan, w); if (c.length) pieces.mid = pick(c).id; }
-    if (wantOuter) { const c = candidatesFor('outer', plan, w); if (c.length) pieces.outer = pick(c).id; }
-    if (plan.layer && !pieces.mid && !pieces.outer) {
-      const c = candidatesFor('outer', plan, w).concat(candidatesFor('mid', plan, w));
-      if (c.length) { const it = pick(c); pieces[CATS[it.category].slot] = it.id; }
-    }
-    { const c = candidatesFor('shoes', plan, w); if (c.length) pieces.shoes = pick(c).id; }
-    if (plan.acc) { const c = candidatesFor('acc', plan, w); if (c.length) pieces.acc = pick(c).id; }
-
-    const items = Object.values(pieces).map(id => state.items.find(i => i.id === id));
-    if (!items.length) continue;
-    let score = colorScore(items) + Math.random() * 1.5;
-    for (const [slot, id] of Object.entries(pieces)) {
-      const it = state.items.find(i => i.id === id);
-      score += warmthFit(it, plan[slot]) * 0.5;
-    }
-    const key = Object.values(pieces).sort().join('|');
-    if (state.seen.has(key)) score -= 6;
-    if (!best || score > best.score) best = { pieces, score, key };
-  }
-  return { best, plan };
+    beams = next.map(b => [evalP(b), b]).sort((x, y) => y[0] - x[0] || outfitKey(Object.fromEntries(x[1].map(p => [p.slot, p.it.id]))).localeCompare(outfitKey(Object.fromEntries(y[1].map(p => [p.slot, p.it.id]))))).slice(0, BEAM).map(x => x[1]);
+  };
+  step('shoes', { opt: false });
+  if (plan.mid) step('mid', { opt: plan.mid.opt !== false });
+  if (plan.outer) step('outer', { opt: plan.outer.opt !== false });
+  step('tie', { need: b => b.some(p => p.slot === 'top' && p.it.category === 'chemise') });
+  if (plan.acc) step('acc', { opt: plan.acc.opt !== false });
+  step('style');
+  // Classement final, sans les tenues que tu n'as pas aimées
+  const scored = beams.map(b => {
+    const pieces = Object.fromEntries(b.map(p => [p.slot, p.it.id]));
+    const r = scoreOutfit(b, ctx);
+    return { pieces, key: outfitKey(pieces), score: r.s + (state.prefs.liked.includes(outfitKey(pieces)) ? 1 : 0), why: r.why };
+  }).filter(o => !disliked.has(o.key)).sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+  // Variété : on alterne les bases (haut + bas) avant de reproposer la même
+  const ideas = [], seenBase = new Set();
+  for (const o of scored) { const base = [o.pieces.top, o.pieces.bottom, o.pieces.dress].join(); if (!seenBase.has(base)) { seenBase.add(base); ideas.push(o); } }
+  for (const o of scored) if (!ideas.includes(o)) ideas.push(o);
+  return { ideas: ideas.slice(0, 30), plan };
 }
 
-function suggest() {
+function suggest(advance = false) {
   if (!state.items.length) {
     $('#stage').innerHTML = mannequinSvg() + `<div class="missing" style="top:45%">Ajoute des vêtements dans « Dressing »</div>`;
     $('#outfit-hint').textContent = '';
@@ -690,12 +825,13 @@ function suggest() {
     updateSaveBtn();
     return;
   }
-  const { best, plan } = buildOutfit();
-  if (!best) return;
-  state.seen.add(best.key);
-  state.current = { pieces: best.pieces };
-  const w = weatherSummary();
-  $('#outfit-hint').textContent = plan.hint;
+  const { ideas, plan } = buildIdeas();
+  if (!ideas.length) return;
+  state.ideaIdx = advance ? (state.ideaIdx + 1) % ideas.length : 0;
+  const idea = ideas[state.ideaIdx];
+  state.current = { pieces: idea.pieces, key: idea.key };
+  $('#outfit-hint').innerHTML = `${esc(plan.hint)}${idea.why.length ? '<br><span class="why">' + esc(idea.why.join(' ')) + '</span>' : ''}`;
+  $('#idea-count').textContent = `Idée ${state.ideaIdx + 1} sur ${ideas.length}`;
   renderAssistantLine(plan);
   renderStage();
   $('#ai-result').innerHTML = '';
@@ -706,7 +842,7 @@ function animateSuggest(dir = -1) {
   const st = $('#stage');
   st.style.setProperty('--dx', `${dir * 40}px`);
   st.classList.add('out');
-  setTimeout(() => { suggest(); st.style.setProperty('--dx', `${-dir * 40}px`); requestAnimationFrame(() => st.classList.remove('out')); }, 180);
+  setTimeout(() => { suggest(true); st.style.setProperty('--dx', `${-dir * 40}px`); requestAnimationFrame(() => st.classList.remove('out')); }, 180);
 }
 $('#btn-another').onclick = () => animateSuggest(-1);
 // Glisser sur le mannequin = une autre idée
@@ -722,20 +858,74 @@ $('#btn-another').onclick = () => animateSuggest(-1);
   });
 }
 
-// Change une seule pièce (touchée sur le mannequin)
+// Change une seule pièce : propose la meilleure alternative suivante pour cet emplacement
 function swapPiece(slot) {
   const w = weatherSummary(), plan = planFor(w);
-  let c = candidatesFor(slot, plan, w);
-  if (c.length < 2) c = bySlot(slot);
-  if (c.length < 2) { toast(`Pas d'autre ${SLOT_NAME[slot].toLowerCase()} adapté pour l'instant.`); return; }
-  const cur = state.current.pieces[slot];
-  const idx = c.findIndex(i => i.id === cur);
-  state.current.pieces[slot] = c[(idx + 1) % c.length].id;
+  const ctx = { plan, w, worn: lastWornMap() };
+  const cur = state.current.pieces;
+  const others = Object.entries(cur).filter(([s]) => s !== slot).map(([s, id]) => ({ slot: s, it: state.items.find(i => i.id === id) })).filter(x => x.it);
+  const ranked = bySlot(slot).map(it => ({ it, s: scoreOutfit([...others, { slot, it }], ctx).s })).sort((a, b) => b.s - a.s || a.it.id.localeCompare(b.it.id));
+  if (ranked.length < 2) { toast(`Pas d'autre ${SLOT_NAME[slot].toLowerCase()} dans ton dressing.`); return; }
+  const idx = ranked.findIndex(r => r.it.id === cur[slot]);
+  cur[slot] = ranked[(idx + 1) % ranked.length].it.id;
+  state.current.key = outfitKey(cur);
   state.current.aiImage = null; state.current.savedId = null;
   $('#ai-result').innerHTML = '';
   renderStage();
   navigator.vibrate?.(10);
 }
+
+// ---------- J'aime / J'aime pas ----------
+async function savePrefs() { await kv.set('prefs', state.prefs); }
+async function rateCurrent(like) {
+  if (!state.current) return;
+  const ids = Object.values(state.current.pieces);
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const k = pairKey(ids[i], ids[j]);
+    state.prefs.aff[k] = Math.max(-4, Math.min(4, (state.prefs.aff[k] || 0) + (like ? 1 : -1)));
+  }
+  const key = outfitKey(state.current.pieces);
+  if (like) { if (!state.prefs.liked.includes(key)) state.prefs.liked.push(key); state.prefs.disliked = state.prefs.disliked.filter(k => k !== key); }
+  else { if (!state.prefs.disliked.includes(key)) state.prefs.disliked.push(key); state.prefs.liked = state.prefs.liked.filter(k => k !== key); }
+  await savePrefs();
+  navigator.vibrate?.(12);
+  if (like) { toast('Noté 👍 Je proposerai plus souvent ce genre d\'associations.'); updateRateBtns(); }
+  else { toast('Noté 👎 Je ne te la reproposerai plus.'); state.ideaIdx = Math.max(-1, state.ideaIdx - 1); animateSuggest(-1); }
+}
+function updateRateBtns() {
+  const key = state.current && outfitKey(state.current.pieces);
+  $('#btn-like').classList.toggle('on', !!key && state.prefs.liked.includes(key));
+}
+$('#btn-like').onclick = () => rateCurrent(true);
+$('#btn-dislike').onclick = () => rateCurrent(false);
+
+// ---------- Journal : « Je la porte aujourd'hui » ----------
+async function wearCurrent() {
+  if (!state.current) return;
+  const date = isoDay();
+  state.journal = state.journal.filter(e => e.date !== date);
+  state.journal.push({ date, pieces: { ...state.current.pieces }, weather: state.weather ? { temp: Math.round(state.weather.current.temperature_2m), code: state.weather.current.weather_code } : null });
+  await kv.set('journal', state.journal);
+  updateWearBtn();
+  navigator.vibrate?.(15);
+  toast('Notée dans ton journal ✓ Je varierai les pièces les prochains jours.');
+}
+function updateWearBtn() {
+  const today = state.journal.find(e => e.date === isoDay());
+  const worn = !!today && state.current && outfitKey(today.pieces) === outfitKey(state.current.pieces);
+  $('#btn-wear').classList.toggle('on', worn);
+  $('#btn-wear-label').textContent = worn ? 'Portée ✓' : 'Je la porte';
+}
+$('#btn-wear').onclick = wearCurrent;
+
+// Vue mannequin ou « à plat »
+function setView(v) {
+  state.view = v;
+  try { localStorage.setItem('view', v); } catch {}
+  $('#view-toggle').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  if (state.current) renderStage();
+}
+$('#view-toggle').querySelectorAll('button').forEach(b => b.onclick = () => setView(b.dataset.v));
 
 function mannequinSvg() {
   return `<svg class="mannequin" viewBox="0 0 300 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -754,17 +944,32 @@ function mannequinSvg() {
 function renderStage() {
   const stage = $('#stage');
   const p = state.current.pieces;
-  let html = mannequinSvg();
-  for (const slot of SLOT_ORDER) {
+  stage.classList.toggle('flat', state.view === 'flat');
+  let html = state.view === 'flat' ? '' : mannequinSvg();
+  if (state.view === 'flat') {
+    // Moodboard : les pièces côte à côte, légèrement inclinées comme posées sur une table
+    const order = ['outer', 'mid', 'top', 'dress', 'tie', 'bottom', 'acc', 'shoes', 'style'].filter(sl => p[sl] && state.items.find(i => i.id === p[sl]));
+    const big = new Set(['outer', 'dress', 'bottom']);
+    const tilt = [-3, 2.5, -1.5, 3, -2.5, 1.5, -2, 2, -1];
+    html = `<div class="flat-grid n${order.length}">` + order.map((sl, k) => {
+      const it = state.items.find(i => i.id === p[sl]);
+      return `<div class="flat-cell ${big.has(sl) ? 'big' : ''}" style="--tilt:${tilt[k]}deg"><img class="piece-flat" data-slot="${sl}" src="${itemUrl(it)}" alt="${esc(itemName(it))}"></div>`;
+    }).join('') + '</div>';
+    stage.innerHTML = html;
+    stage.querySelectorAll('.piece-flat').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) swapPiece(el.dataset.slot); });
+  }
+  if (state.view !== 'flat') for (const slot of SLOT_ORDER) {
     const it = state.items.find(i => i.id === p[slot]);
     if (!it) continue;
     const L = LAYOUT[slot];
     html += `<img class="piece tap" data-slot="${slot}" src="${itemUrl(it)}" alt="${esc(itemName(it))}"
       style="left:${L.l}%;top:${L.t}%;width:${L.w}%;height:${L.h}%;z-index:${L.z}">`;
   }
+  if (state.view !== 'flat') {
   if (!p.top && !p.dress) html += `<div class="missing" style="top:30%">Ajoute un haut</div>`;
   if (!p.bottom && !p.dress) html += `<div class="missing" style="top:62%">Ajoute un bas</div>`;
   stage.innerHTML = html;
+  }
   stage.querySelectorAll('.piece').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) swapPiece(el.dataset.slot); });
   // Liste des pièces sous le mannequin
   const strip = $('#pieces-strip');
@@ -773,6 +978,8 @@ function renderStage() {
     return `<button data-slot="${s}"><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || it.color)}</span></button>`;
   }).join('');
   updateSaveBtn();
+  updateRateBtns();
+  updateWearBtn();
   strip.querySelectorAll('button').forEach(b => b.onclick = () => swapPiece(b.dataset.slot));
 }
 
@@ -839,8 +1046,12 @@ $('#btn-save').onclick = async () => {
 const outfitDate = o => new Date(o.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const outfitTitle = o => o.name || 'Tenue du ' + outfitDate(o);
 function renderLibrary() {
+  const journal = state.libView === 'journal';
+  $('#journal-list').classList.toggle('hidden', !journal);
+  $('#library-list').classList.toggle('hidden', journal);
+  if (journal) { $('#library-empty').classList.add('hidden'); renderJournal(); }
   const list = [...state.outfits].sort((a, b) => b.createdAt - a.createdAt);
-  $('#library-empty').classList.toggle('hidden', list.length > 0);
+  if (!journal) $('#library-empty').classList.toggle('hidden', list.length > 0);
   $('#library-kicker').textContent = list.length ? `${list.length} tenue${list.length > 1 ? 's' : ''} sauvegardée${list.length > 1 ? 's' : ''}` : 'Ta bibliothèque';
   $('#library-list').innerHTML = list.map(o => {
     const main = o.aiImage || o.preview;
@@ -851,6 +1062,22 @@ function renderLibrary() {
     </div>`;
   }).join('');
   $('#library-list').querySelectorAll('.lcard').forEach(card => card.onclick = () => openOutfit(state.outfits.find(x => x.id === card.dataset.id)));
+}
+state.libView = 'saved';
+$('#lib-toggle').querySelectorAll('button').forEach(b => b.onclick = () => {
+  state.libView = b.dataset.l;
+  $('#lib-toggle').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderLibrary();
+});
+function renderJournal() {
+  const list = [...state.journal].sort((a, b) => b.date.localeCompare(a.date));
+  $('#journal-list').innerHTML = list.length ? list.map(e => {
+    const d = new Date(e.date);
+    const minis = SLOT_ORDER.filter(sl => e.pieces[sl]).map(sl => state.items.find(i => i.id === e.pieces[sl])).filter(Boolean);
+    return `<div class="glass jentry"><div class="jdate"><b>${d.getDate()}</b><span>${d.toLocaleDateString('fr-FR', { month: 'short' })}</span></div>
+      <div class="jminis">${minis.map(i => `<img src="${itemUrl(i)}" alt="">`).join('')}</div>
+      ${e.weather ? `<div class="jwx">${(WMO[e.weather.code] || [''])[0]} ${e.weather.temp}°</div>` : ''}</div>`;
+  }).join('') : `<div class="empty"><p>Ton journal est vide</p><p class="muted">Touche « Je la porte » sur la tenue du jour pour la noter ici.</p></div>`;
 }
 let openedOutfit = null;
 function openOutfit(o) {
@@ -1029,12 +1256,26 @@ $('#export-btn').onclick = async () => {
   const outfits = await Promise.all(state.outfits.map(async o => ({
     ...o, preview: o.preview ? await blobToDataUrl(o.preview) : null, aiImage: o.aiImage ? await blobToDataUrl(o.aiImage) : null,
   })));
-  const blob = new Blob([JSON.stringify({ app: 'garde-robe', v: 1, items, outfits })], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'garde-robe', v: 2, items, outfits, journal: state.journal, prefs: state.prefs })], { type: 'application/json' });
   const name = `garde-robe-${new Date().toISOString().slice(0, 10)}.json`;
   const file = new File([blob], name, { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); } catch {} }
+  let ok = true;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); } catch (e) { ok = e?.name !== 'AbortError'; } }
   else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+  if (ok) { await kv.set('lastBackup', Date.now()); renderBackupBanner(); toast('Sauvegarde prête ✓ Choisis « Enregistrer dans Fichiers » pour la garder sur iCloud.', 5000); }
 };
+// Rappel de sauvegarde : une fois par mois (et 2 semaines après la première pièce)
+async function renderBackupBanner() {
+  const last = await kv.get('lastBackup');
+  const snooze = (await kv.get('backupSnooze')) || 0;
+  const first = state.items.length ? Math.min(...state.items.map(i => i.createdAt)) : Date.now();
+  const due = state.items.length >= 3 && Date.now() > snooze && (last ? Date.now() - last > 30 * DAY : Date.now() - first > 14 * DAY);
+  $('#backup-banner').classList.toggle('hidden', !due);
+  if (last) $('#backup-msg').textContent = `Dernière sauvegarde il y a ${Math.round((Date.now() - last) / DAY)} jours. Mets une copie à l'abri dans iCloud ou Fichiers.`;
+  $('#backup-info').textContent = last ? `Dernière sauvegarde : ${new Date(last).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` : 'Aucune sauvegarde pour l\'instant.';
+}
+$('#backup-now').onclick = () => $('#export-btn').click();
+$('#backup-later').onclick = async () => { await kv.set('backupSnooze', Date.now() + 7 * DAY); renderBackupBanner(); };
 $('#import-input').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
@@ -1046,6 +1287,8 @@ $('#import-input').onchange = async e => {
       o.aiImage = o.aiImage ? await dataUrlToBlob(o.aiImage) : null;
       await db.put('outfits', o);
     }
+    if (j.journal) { const dates = new Set(state.journal.map(e => e.date)); state.journal.push(...j.journal.filter(e => !dates.has(e.date))); await kv.set('journal', state.journal); }
+    if (j.prefs) { state.prefs = { ...state.prefs, ...j.prefs }; await savePrefs(); }
     state.items = await db.all('items'); state.outfits = await db.all('outfits');
     toast(`Importé : ${j.items.length} vêtements, ${(j.outfits || []).length} tenues ✓`);
     renderWardrobe(); suggest();
@@ -1075,6 +1318,10 @@ async function init() {
   if (prefs.intro && !sessionStorage.getItem('introSeen')) { sessionStorage.setItem('introSeen', '1'); runIntro(); }
   else document.documentElement.classList.remove('intro-pending');
   state.outfits = await db.all('outfits');
+  state.journal = (await kv.get('journal')) || [];
+  state.prefs = { aff: {}, liked: [], disliked: [], ...((await kv.get('prefs')) || {}) };
+  setView(state.view);
+  renderBackupBanner();
   $('#hf-token').value = (await kv.get('hfToken')) || '';
   $('#hf-space').value = (await kv.get('hfSpace')) || '';
   showPerson(await kv.get('person'));
@@ -1088,4 +1335,4 @@ async function init() {
 init();
 
 // Pour les tests
-window.__gr = { state, suggest, planFor, colorScore, db };
+window.__gr = { state, suggest, planFor, buildIdeas, db, kv };

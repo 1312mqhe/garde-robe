@@ -39,6 +39,9 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.8"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-thumb" viewBox="0 0 24 24"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3Zm0 0 4-7a2.5 2.5 0 0 1 2.5 3L13 10h5.6a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.2 21H7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 6.5"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5Z"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
 </defs>
 </svg>
@@ -56,11 +59,30 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
       <div class="muted">Chargement de la météo…</div>
     </div>
 
+    <div id="backup-banner" class="glass banner hidden">
+      <div class="banner-ic"><svg class="ic"><use href="#i-cloud"/></svg></div>
+      <div class="banner-txt"><b>Pense à sauvegarder</b><span id="backup-msg">Une copie de ton dressing, en sécurité dans iCloud ou Fichiers.</span></div>
+      <div class="banner-actions">
+        <button id="backup-now" class="btn-grad small-btn">Sauvegarder</button>
+        <button id="backup-later" class="link small">Plus tard</button>
+      </div>
+    </div>
+
     <div id="fact" class="glass fact hidden"></div>
 
-    <div class="section-title">Ta tenue du jour</div>
+    <div class="section-row">
+      <div class="section-title">Ta tenue du jour</div>
+      <div id="view-toggle" class="mini-seg"><button data-v="mannequin">Mannequin</button><button data-v="flat">À plat</button></div>
+    </div>
     <div class="glass outfit">
-      <div id="stage" class="stage"></div>
+      <div class="stage-wrap">
+        <div id="stage" class="stage"></div>
+        <div class="rate">
+          <button id="btn-dislike" class="btn-round rate-btn" aria-label="Je n'aime pas"><svg class="ic flip"><use href="#i-thumb"/></svg></button>
+          <button id="btn-like" class="btn-round rate-btn" aria-label="J'aime"><svg class="ic"><use href="#i-thumb"/></svg></button>
+        </div>
+        <div id="idea-count" class="idea-count"></div>
+      </div>
       <div class="swipe-hint">Glisse pour une autre idée · touche une pièce pour la changer</div>
       <div id="outfit-hint" class="hint"></div>
       <div id="pieces-strip" class="strip"></div>
@@ -70,7 +92,8 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
         <button id="btn-save" class="btn-icon" aria-label="Sauvegarder"><svg class="ic"><use href="#i-heart"/></svg></button>
       </div>
       <div class="actions-sub">
-        <button id="btn-ai" class="btn-glass"><svg class="ic"><use href="#i-sparkle"/></svg>Essayer (IA)</button>
+        <button id="btn-wear" class="btn-glass"><svg class="ic"><use href="#i-check"/></svg><span id="btn-wear-label">Je la porte</span></button>
+        <button id="btn-ai" class="btn-glass"><svg class="ic"><use href="#i-sparkle"/></svg>Essayer</button>
         <button id="btn-gemini" class="btn-glass"><svg class="ic"><use href="#i-share"/></svg>Gemini</button>
       </div>
       <div id="ai-status" class="status"></div>
@@ -100,7 +123,9 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
       <div id="library-kicker" class="kicker">&nbsp;</div>
       <h1>Mes tenues</h1>
     </header>
+    <div id="lib-toggle" class="seg lib-seg"><button data-l="saved" class="on">Sauvegardées</button><button data-l="journal">Journal</button></div>
     <div id="library-list" class="lib-grid"></div>
+    <div id="journal-list" class="journal hidden"></div>
     <div id="library-empty" class="empty hidden">
       <div class="empty-ic"><svg class="ic"><use href="#i-heart"/></svg></div>
       <p>Aucune tenue sauvegardée</p>
@@ -175,6 +200,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
         </label>
       </div>
       <div id="storage-info" class="muted small"></div>
+      <div id="backup-info" class="muted small"></div>
     </div>
     <p class="muted small center">Météo : Open-Meteo · Détourage fait sur ton téléphone</p>
   </section>
@@ -211,6 +237,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
     <div id="edit-zone" class="hidden">
       <div class="photo-box"><img id="edit-img" alt=""></div>
       <div id="cut-status" class="status"></div>
+      <div id="item-stats" class="item-stats hidden"></div>
       <div class="center">
         <button id="toggle-cut" class="link small hidden">Garder la photo d'origine</button>
       </div>
@@ -243,7 +270,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
     <div id="o-meta" class="muted small"></div>
     <div id="o-images" class="o-images"></div>
     <div id="o-minis" class="strip"></div>
-    <button id="o-wear" class="btn-grad full">Porter cette tenue aujourd'hui</button>
+    <button id="o-wear" class="btn-grad full">Remettre cette tenue aujourd'hui</button>
     <div class="row">
       <label class="btn-glass filebtn grow"><svg class="ic"><use href="#i-image"/></svg>Joindre une image
         <input id="o-img" type="file" accept="image/*" hidden>
