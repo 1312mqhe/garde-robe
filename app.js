@@ -1,4 +1,5 @@
 // Garde-robe : appli web locale (aucun serveur). Les données restent dans IndexedDB.
+import { FACTS } from './facts.js';
 
 const BG_REMOVAL_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
 const GRADIO_URL = 'https://cdn.jsdelivr.net/npm/@gradio/client@1.19.1/+esm';
@@ -479,6 +480,82 @@ function renderWeather(stale = false) {
   $('#refresh-gps') && ($('#refresh-gps').onclick = () => loadWeather(true, true));
   renderKicker();
 }
+// ---------- Assistant ----------
+const DEFAULT_NAME = 'Mahé';
+const prefs = { name: DEFAULT_NAME, intro: true, fact: true };
+function greetingWord() {
+  const h = new Date().getHours();
+  return h < 5 ? 'Bonne nuit' : h < 18 ? 'Bonjour' : 'Bonsoir';
+}
+function renderGreeting() {
+  $('#greeting').textContent = `${greetingWord()} ${prefs.name}`.trim();
+}
+// Petite phrase de l'assistant, selon la météo et la tenue
+function renderAssistantLine(plan) {
+  const el = $('#assistant-line');
+  if (!state.items.length) { el.innerHTML = "Ajoute quelques vêtements dans <b>Dressing</b> et je te proposerai une tenue chaque matin."; return; }
+  if (!state.weather) { el.textContent = 'Voici une idée de tenue pour aujourd\'hui.'; return; }
+  const w = weatherSummary(), cur = state.weather.current;
+  const t = Math.round(cur.temperature_2m), f = Math.round(cur.apparent_temperature);
+  const place = state.loc?.name ? ` à ${esc(state.loc.name)}` : '';
+  let mood;
+  if (w.feels >= 25) mood = 'Il fait chaud, je t\'ai choisi des pièces légères.';
+  else if (w.feels >= 20) mood = 'Temps doux, parfait pour une tenue légère.';
+  else if (w.feels >= 15) mood = 'Il fait frais, j\'ai ajouté une couche à retirer si besoin.';
+  else if (w.feels >= 9) mood = 'Il fait frais, je t\'ai préparé une tenue en plusieurs couches.';
+  else if (w.feels >= 3) mood = 'Il fait froid, manteau obligatoire !';
+  else mood = 'Grand froid aujourd\'hui, couvre-toi bien.';
+  const extra = w.snow ? ' Neige prévue, prévois de bonnes chaussures.' : w.rain ? ' Pluie prévue, pense au parapluie ☔' : w.wind > 35 ? ' Ça souffle fort, évite les tissus trop légers.' : '';
+  el.innerHTML = `<b>${t}°${f !== t ? ` (${f}° ressentis)` : ''}</b>${place}. ${mood}${extra}`;
+}
+
+// Anecdote du jour : change à minuit, parcourt toute la liste avant de recommencer
+function dayNumber() { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5); }
+function renderFact() {
+  const box = $('#fact');
+  if (!prefs.fact) { box.classList.add('hidden'); return; }
+  const n = FACTS.length;
+  const [cat, text] = FACTS[(dayNumber() * 37) % n];
+  box.innerHTML = `<div class="f-head"><span>Le saviez-vous ?</span><span>${cat}</span></div><p>${esc(text)}</p>
+    <button class="link f-share"><svg class="ic"><use href="#i-share"/></svg>Partager</button>`;
+  box.querySelector('.f-share').onclick = async () => {
+    const msg = `Le saviez-vous ? ${text}`;
+    if (navigator.share) { try { await navigator.share({ text: msg }); } catch {} }
+    else { try { await navigator.clipboard.writeText(msg); toast('Anecdote copiée ✓'); } catch {} }
+  };
+  box.classList.remove('hidden');
+}
+
+// Animation d'ouverture façon assistant
+function runIntro() {
+  const el = $('#intro');
+  el.classList.remove('hidden', 'leave');
+  const hello = $('#intro-hello'), lines = $('#intro-lines');
+  lines.innerHTML = '';
+  const word = `${greetingWord()} ${prefs.name}`.trim();
+  let done = false, timers = [];
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const finish = () => {
+    if (done) return; done = true;
+    timers.forEach(clearTimeout);
+    el.classList.add('leave');
+    setTimeout(() => el.classList.add('hidden'), 650);
+  };
+  el.onclick = finish;
+  hello.innerHTML = '<span class="cursor"></span>';
+  [...word].forEach((ch, i) => later(() => { hello.innerHTML = esc(word.slice(0, i + 1)) + '<span class="cursor"></span>'; }, 350 + i * 70));
+  const t0 = 350 + word.length * 70 + 200;
+  const addLine = txt => { const d = document.createElement('div'); d.textContent = txt; lines.appendChild(d); };
+  later(() => addLine('Systèmes en ligne'), t0);
+  later(() => {
+    const c = state.weather?.current;
+    addLine(c ? `Météo${state.loc?.name ? ' ' + state.loc.name : ''} : ${Math.round(c.temperature_2m)}°, ${(WMO[c.weather_code] || ['', 'analysée'])[1].toLowerCase()}` : 'Analyse de la météo…');
+  }, t0 + 450);
+  later(() => addLine(`Dressing : ${state.items.length} pièce${state.items.length > 1 ? 's' : ''} analysée${state.items.length > 1 ? 's' : ''}`), t0 + 900);
+  later(() => addLine(state.current ? 'Tenue du jour prête ✓' : 'Prêt ✓'), t0 + 1350);
+  later(finish, t0 + 2200);
+}
+
 function renderKicker() {
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#today-kicker').textContent = date[0].toUpperCase() + date.slice(1) + (state.loc?.name ? ' · ' + state.loc.name : '');
@@ -573,6 +650,7 @@ function suggest() {
   if (!state.items.length) {
     $('#stage').innerHTML = mannequinSvg() + `<div class="missing" style="top:45%">Ajoute des vêtements dans « Dressing »</div>`;
     $('#outfit-hint').textContent = '';
+    renderAssistantLine();
     $('#pieces-strip').innerHTML = '';
     state.current = null;
     updateSaveBtn();
@@ -583,7 +661,8 @@ function suggest() {
   state.seen.add(best.key);
   state.current = { pieces: best.pieces };
   const w = weatherSummary();
-  $('#outfit-hint').innerHTML = state.weather ? `<b>${Math.round(w.feels)}° ressentis.</b> ${esc(plan.hint)}` : esc(plan.hint);
+  $('#outfit-hint').textContent = plan.hint;
+  renderAssistantLine(plan);
   renderStage();
   $('#ai-result').innerHTML = '';
   $('#ai-status').textContent = '';
@@ -898,6 +977,12 @@ $('#person-input').onchange = async e => {
   showPerson(b); toast('Photo enregistrée ✓');
 };
 function showPerson(b) { const i = $('#person-preview'); if (b) { i.src = URL.createObjectURL(b); i.classList.remove('hidden'); } }
+$('#user-name').onchange = async e => { prefs.name = e.target.value.trim(); await kv.set('userName', prefs.name); renderGreeting(); };
+$('#intro-on').onchange = e => { prefs.intro = e.target.checked; kv.set('introOn', prefs.intro); };
+$('#fact-on').onchange = e => { prefs.fact = e.target.checked; kv.set('factOn', prefs.fact); renderFact(); };
+$('#intro-replay').onclick = () => runIntro();
+// Si l'appli reste ouverte en fond, on remet à jour le salut et l'anecdote au retour
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderGreeting(); renderFact(); } });
 $('#hf-token').onchange = e => kv.set('hfToken', e.target.value.trim());
 $('#hf-space').onchange = e => kv.set('hfSpace', e.target.value.trim());
 
@@ -943,7 +1028,16 @@ async function storageInfo() {
 
 // ---------- Démarrage ----------
 async function init() {
+  prefs.name = (await kv.get('userName')) ?? DEFAULT_NAME;
+  prefs.intro = (await kv.get('introOn')) ?? true;
+  prefs.fact = (await kv.get('factOn')) ?? true;
+  $('#user-name').value = prefs.name;
+  $('#intro-on').checked = prefs.intro;
+  $('#fact-on').checked = prefs.fact;
+  renderGreeting();
+  renderFact();
   state.items = await db.all('items');
+  if (prefs.intro && !sessionStorage.getItem('introSeen')) { sessionStorage.setItem('introSeen', '1'); runIntro(); }
   state.outfits = await db.all('outfits');
   $('#hf-token').value = (await kv.get('hfToken')) || '';
   $('#hf-space').value = (await kv.get('hfSpace')) || '';

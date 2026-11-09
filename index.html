@@ -43,13 +43,17 @@
   <section id="tab-today" class="tab active">
     <header class="head">
       <div id="today-kicker" class="kicker">&nbsp;</div>
-      <h1>Ta tenue du jour</h1>
+      <h1 id="greeting">Bonjour</h1>
+      <p id="assistant-line" class="assistant-line"></p>
     </header>
 
     <div id="weather" class="glass weather">
       <div class="muted">Chargement de la météo…</div>
     </div>
 
+    <div id="fact" class="glass fact hidden"></div>
+
+    <div class="section-title">Ta tenue du jour</div>
     <div class="glass outfit">
       <div id="stage" class="stage"></div>
       <div class="swipe-hint">Glisse pour une autre idée · touche une pièce pour la changer</div>
@@ -105,6 +109,16 @@
       <div class="kicker">Garde-robe</div>
       <h1>Réglages</h1>
     </header>
+
+    <div class="glass block">
+      <h2>Ton assistant</h2>
+      <label class="field">Ton prénom
+        <input id="user-name" type="text" placeholder="Mahé" autocomplete="given-name">
+      </label>
+      <label class="switch"><input type="checkbox" id="intro-on" checked><span class="track"></span>Animation d'ouverture</label>
+      <label class="switch"><input type="checkbox" id="fact-on" checked><span class="track"></span>Anecdote du jour</label>
+      <button id="intro-replay" class="link"><svg class="ic"><use href="#i-sparkle"/></svg>Revoir l'animation</button>
+    </div>
 
     <div class="glass block">
       <h2>Météo</h2>
@@ -230,6 +244,33 @@
     </div>
     <button id="o-del" class="link danger full">Supprimer cette tenue</button>
   </div>
+</div>
+
+<!-- Animation d'ouverture -->
+<div id="intro" class="intro hidden" aria-hidden="true">
+  <div class="intro-grid"></div>
+  <div class="reactor">
+    <svg viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ee7ff"/><stop offset=".5" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff5ca8"/></linearGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <g filter="url(#glow)" fill="none" stroke="url(#rg)">
+        <circle class="r r1" cx="100" cy="100" r="92" stroke-width="1" stroke-dasharray="2 6"/>
+        <circle class="r r2" cx="100" cy="100" r="80" stroke-width="3" stroke-dasharray="60 20 10 20"/>
+        <circle class="r r3" cx="100" cy="100" r="66" stroke-width="1.2" stroke-dasharray="120 30"/>
+        <circle class="r r4" cx="100" cy="100" r="54" stroke-width="6" stroke-dasharray="4 8" opacity=".7"/>
+        <circle class="r r5" cx="100" cy="100" r="40" stroke-width="1.5" stroke-dasharray="40 12"/>
+        <circle class="core" cx="100" cy="100" r="22" fill="url(#rg)" stroke="none"/>
+      </g>
+      <circle class="scan" cx="100" cy="100" r="92" fill="none" stroke="#5ee7ff" stroke-width="2" stroke-dasharray="40 538" filter="url(#glow)"/>
+    </svg>
+  </div>
+  <div class="intro-text">
+    <div id="intro-hello" class="intro-hello"></div>
+    <div id="intro-lines" class="intro-lines"></div>
+  </div>
+  <div class="intro-skip">Touche pour passer</div>
 </div>
 
 <div id="toast" class="toast hidden"></div>

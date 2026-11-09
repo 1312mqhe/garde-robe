@@ -170,3 +170,41 @@ details{margin-top:12px;color:var(--muted)}summary{cursor:pointer}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--safe-b));background:rgba(40,38,56,.95);border:1px solid var(--line);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#fff;padding:11px 18px;border-radius:16px;font-size:14px;z-index:50;max-width:88%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:fade .2s}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--a2);border-radius:50%;animation:spin 1s linear infinite;vertical-align:-2px;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Assistant */
+.head h1#greeting{font-size:34px;background:linear-gradient(90deg,#fff 30%,#c8b8ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.assistant-line{margin:8px 0 0;font-size:15px;line-height:1.45;color:var(--soft);min-height:22px}
+.assistant-line b{color:var(--ink);font-weight:600}
+.section-title{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:22px 4px 10px}
+.fact{padding:16px 18px;position:relative;overflow:hidden}
+.fact::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(94,231,255,.10),rgba(139,108,255,.10) 50%,rgba(255,92,168,.08));pointer-events:none}
+.fact .f-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.8px;color:#b7a6ff}
+.fact .f-head span:last-child{color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0}
+.fact p{margin:8px 0 0;font-size:15px;line-height:1.5;color:var(--ink)}
+.fact .f-share{margin-top:6px;font-size:13px}
+
+/* Animation d'ouverture */
+.intro{position:fixed;inset:0;z-index:100;background:radial-gradient(70% 50% at 50% 42%,#1a1640,#07070c 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s ease,transform .6s ease}
+.intro.leave{opacity:0;transform:scale(1.08);pointer-events:none}
+.intro-grid{position:absolute;inset:0;opacity:.18;background-image:linear-gradient(rgba(94,231,255,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(94,231,255,.25) 1px,transparent 1px);background-size:32px 32px;-webkit-mask-image:radial-gradient(circle at 50% 42%,#000,transparent 65%);mask-image:radial-gradient(circle at 50% 42%,#000,transparent 65%)}
+.reactor{width:min(62vw,260px);aspect-ratio:1;position:relative;animation:pop .7s cubic-bezier(.2,1.4,.4,1) both}
+.reactor svg{width:100%;height:100%;overflow:visible}
+.reactor .r{transform-origin:100px 100px;animation:spin 6s linear infinite}
+.reactor .r1{animation-duration:14s}
+.reactor .r2{animation-duration:5s;animation-direction:reverse}
+.reactor .r3{animation-duration:3.2s}
+.reactor .r4{animation-duration:9s;animation-direction:reverse}
+.reactor .r5{animation-duration:2.4s}
+.reactor .core{transform-origin:100px 100px;animation:pulse 1.4s ease-in-out infinite}
+.reactor .scan{transform-origin:100px 100px;animation:spin 1.6s linear infinite}
+@keyframes pop{from{transform:scale(.3);opacity:0}}
+@keyframes pulse{50%{transform:scale(1.18);opacity:.75}}
+.intro-text{margin-top:34px;text-align:center;min-height:120px;padding:0 24px}
+.intro-hello{font-size:28px;font-weight:300;letter-spacing:6px;text-transform:uppercase;color:#fff;text-shadow:0 0 18px rgba(139,108,255,.9)}
+.intro-hello .cursor{display:inline-block;width:2px;height:1em;background:#5ee7ff;margin-left:4px;vertical-align:-3px;animation:blink .8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.intro-lines{margin-top:16px;font:12.5px/1.9 "SF Mono",ui-monospace,Menlo,monospace;color:#8fe9ff;letter-spacing:.5px;text-align:left;display:inline-block}
+.intro-lines div{opacity:0;animation:line .35s ease forwards}
+.intro-lines div::before{content:"› ";color:#ff8cc6}
+@keyframes line{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.intro-skip{position:absolute;bottom:calc(30px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.3)}
