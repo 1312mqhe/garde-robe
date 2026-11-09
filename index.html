@@ -14,7 +14,11 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('theme')||'sapin'}catch(e){}</script>
+<script>
+// Appliqué avant l'affichage : couleur, et écran d'ouverture affiché dès la première image
+try{var d=document.documentElement;d.dataset.theme=localStorage.getItem('theme')||'sapin';
+if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d.classList.add('intro-pending');}catch(e){}
+</script>
 </head>
 <body>
 <div class="bg-glow" aria-hidden="true"></div>
@@ -117,7 +121,8 @@
         <input id="user-name" type="text" placeholder="Mahé" autocomplete="given-name">
       </label>
       <div class="field">Couleur</div>
-      <div id="themes" class="themes"></div>
+      <button id="theme-toggle" class="theme-current" aria-expanded="false"><i id="theme-dot"></i><span id="theme-name">Vert sapin</span><svg class="ic chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div id="themes" class="themes collapsed"></div>
       <label class="switch"><input type="checkbox" id="intro-on" checked><span class="track"></span>Animation d'ouverture</label>
       <label class="switch"><input type="checkbox" id="fact-on" checked><span class="track"></span>Anecdote du jour</label>
       <button id="intro-replay" class="link"><svg class="ic"><use href="#i-sparkle"/></svg>Revoir l'animation</button>

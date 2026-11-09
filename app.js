@@ -541,7 +541,7 @@ function runIntro() {
     if (done) return; done = true;
     timers.forEach(clearTimeout);
     el.classList.add('leave');
-    setTimeout(() => el.classList.add('hidden'), 950);
+    setTimeout(() => { el.classList.add('hidden'); document.documentElement.classList.remove('intro-pending'); }, 950);
   };
   el.onclick = finish;
   const tSub = 250 + (word.length + prefs.name.length) * 65 + 1300;
@@ -576,9 +576,18 @@ function applyTheme(t) {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', bg);
   $('#themes').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  const th = THEMES.find(x => x[0] === t) || THEMES[0];
+  $('#theme-name').textContent = th[1];
+  $('#theme-dot').style.background = th[2];
 }
+function toggleThemes(open) {
+  const o = open ?? $('#themes').classList.contains('collapsed');
+  $('#themes').classList.toggle('collapsed', !o);
+  $('#theme-toggle').setAttribute('aria-expanded', o);
+}
+$('#theme-toggle').onclick = () => toggleThemes();
 $('#themes').innerHTML = THEMES.map(([id, label, g]) => `<button data-t="${id}"><i style="background:${g}"></i>${label}</button>`).join('');
-$('#themes').querySelectorAll('button').forEach(b => b.onclick = () => applyTheme(b.dataset.t));
+$('#themes').querySelectorAll('button').forEach(b => b.onclick = () => { applyTheme(b.dataset.t); setTimeout(() => toggleThemes(false), 250); });
 applyTheme(document.documentElement.dataset.theme || 'sapin');
 
 function renderKicker() {
@@ -1003,7 +1012,7 @@ $('#person-input').onchange = async e => {
 };
 function showPerson(b) { const i = $('#person-preview'); if (b) { i.src = URL.createObjectURL(b); i.classList.remove('hidden'); } }
 $('#user-name').onchange = async e => { prefs.name = e.target.value.trim(); await kv.set('userName', prefs.name); renderGreeting(); };
-$('#intro-on').onchange = e => { prefs.intro = e.target.checked; kv.set('introOn', prefs.intro); };
+$('#intro-on').onchange = e => { prefs.intro = e.target.checked; kv.set('introOn', prefs.intro); try { localStorage.setItem('introOn', prefs.intro ? '1' : '0'); } catch {} };
 $('#fact-on').onchange = e => { prefs.fact = e.target.checked; kv.set('factOn', prefs.fact); renderFact(); };
 $('#intro-replay').onclick = () => runIntro();
 // Si l'appli reste ouverte en fond, on remet à jour le salut et l'anecdote au retour
@@ -1062,7 +1071,9 @@ async function init() {
   renderGreeting();
   renderFact();
   state.items = await db.all('items');
+  try { localStorage.setItem('introOn', prefs.intro ? '1' : '0'); } catch {}
   if (prefs.intro && !sessionStorage.getItem('introSeen')) { sessionStorage.setItem('introSeen', '1'); runIntro(); }
+  else document.documentElement.classList.remove('intro-pending');
   state.outfits = await db.all('outfits');
   $('#hf-token').value = (await kv.get('hfToken')) || '';
   $('#hf-space').value = (await kv.get('hfSpace')) || '';
