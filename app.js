@@ -537,7 +537,7 @@ function renderWeather(stale = false) {
 }
 // ---------- Assistant ----------
 const DEFAULT_NAME = 'Mahé';
-const prefs = { name: DEFAULT_NAME, intro: true, fact: true };
+const prefs = { name: DEFAULT_NAME, intro: true, fact: true, advice: true };
 function greetingWord() {
   const h = new Date().getHours();
   return h < 5 ? 'Bonne nuit' : h < 18 ? 'Bonjour' : 'Bonsoir';
@@ -992,6 +992,8 @@ function renderAdvice() {
   const p = creator.pieces;
   const parts = Object.entries(p).map(([slot, id]) => ({ slot, it: state.items.find(i => i.id === id) })).filter(x => x.it);
   const box = $('#c-advice');
+  box.classList.toggle('hidden', !prefs.advice);
+  if (!prefs.advice) return;
   if (parts.length < 2) { box.innerHTML = `<span class="muted small">Choisis au moins deux pièces : je te donnerai mon avis de styliste.</span>`; return; }
   const w = weatherSummary();
   const r = scoreOutfit(parts, { plan: planFor(w), w, worn: {}, checkLayers: true });
@@ -1339,6 +1341,7 @@ function showPerson(b) { const i = $('#person-preview'); if (b) { i.src = URL.cr
 $('#user-name').onchange = async e => { prefs.name = e.target.value.trim(); await kv.set('userName', prefs.name); renderGreeting(); };
 $('#intro-on').onchange = e => { prefs.intro = e.target.checked; kv.set('introOn', prefs.intro); try { localStorage.setItem('introOn', prefs.intro ? '1' : '0'); } catch {} };
 $('#fact-on').onchange = e => { prefs.fact = e.target.checked; kv.set('factOn', prefs.fact); renderFact(); };
+$('#advice-on').onchange = e => { prefs.advice = e.target.checked; kv.set('adviceOn', prefs.advice); document.body.classList.toggle('no-advice', !prefs.advice); };
 $('#intro-replay').onclick = () => runIntro();
 // Si l'appli reste ouverte en fond, on remet à jour le salut et l'anecdote au retour
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderGreeting(); renderFact(); } });
@@ -1409,6 +1412,9 @@ async function init() {
   $('#user-name').value = prefs.name;
   $('#intro-on').checked = prefs.intro;
   $('#fact-on').checked = prefs.fact;
+  prefs.advice = (await kv.get('adviceOn')) ?? true;
+  $('#advice-on').checked = prefs.advice;
+  document.body.classList.toggle('no-advice', !prefs.advice);
   renderGreeting();
   renderFact();
   state.items = await db.all('items');
