@@ -384,11 +384,14 @@ async function reverseName(lat, lon) {
     return j.city || j.locality || j.principalSubdivision || 'Ma position';
   } catch { return 'Ma position'; }
 }
-async function loadWeather(force = false) {
+// La position n'est demandée qu'une fois, puis gardée en mémoire.
+// iPhone redemande l'autorisation à chaque fois qu'on la lit : on ne la relit donc
+// que si l'utilisateur touche « Mettre à jour ma position ».
+async function loadWeather(force = false, refreshGps = false) {
   const box = $('#weather');
   try {
     let loc = state.loc || await kv.get('loc');
-    if (!loc || loc.mode === 'gps') {
+    if (!loc || (loc.mode === 'gps' && refreshGps)) {
       try {
         const c = await getPosition();
         const moved = !loc || Math.abs(loc.lat - c.latitude) > 0.05 || Math.abs(loc.lon - c.longitude) > 0.05;
@@ -396,7 +399,8 @@ async function loadWeather(force = false) {
         await kv.set('loc', loc);
       } catch (e) {
         if (!loc) {
-          box.innerHTML = `<div>📍 Je n'ai pas accès à ta position.</div><div class="muted small">Autorise la localisation, ou choisis une ville dans Réglages.</div>`;
+          box.innerHTML = `<div>📍 Je n'ai pas accès à ta position.</div><div class="muted small">Autorise la localisation, ou choisis une ville dans Réglages.</div><button class="link" id="retry-gps">Réessayer</button>`;
+          $('#retry-gps').onclick = () => loadWeather(true, true);
           suggest();
           return;
         }
@@ -457,7 +461,9 @@ function renderWeather(stale = false) {
       <span>💨 ${Math.round(cur.wind_speed_10m)} km/h</span>
       <span>☔ ${d.precipitation_probability_max[0] ?? 0} %</span>
       ${stale ? '<span>(hors ligne)</span>' : ''}
-    </div>`;
+    </div>
+    ${state.loc?.mode === 'gps' ? '<button class="link small" id="refresh-gps">📍 Mettre à jour ma position</button>' : ''}`;
+  $('#refresh-gps') && ($('#refresh-gps').onclick = () => loadWeather(true, true));
 }
 
 // ---------- Suggestions de tenues ----------
@@ -821,7 +827,7 @@ $('#city-search').onclick = async () => {
     });
   } catch { box.innerHTML = '<div class="muted small">Recherche impossible (pas de réseau ?).</div>'; }
 };
-$('#use-gps').onclick = async () => { state.loc = null; await kv.set('loc', null); loadWeather(true); toast('Position utilisée'); };
+$('#use-gps').onclick = async () => { state.loc = null; await kv.set('loc', null); loadWeather(true, true); toast('Position mise à jour'); };
 $('#person-input').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   const b = await downscale(f, 1024);
