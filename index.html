@@ -12,6 +12,20 @@
 <title>Garde-robe</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1080x2340.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/1242x2208.png">
+<style>html,body{background:#000}html.intro-pending .intro{display:flex;position:fixed;inset:0;background:#000;z-index:100}</style>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
 <script>
@@ -21,6 +35,15 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
 </script>
 </head>
 <body>
+<!-- Animation d'ouverture -->
+<div id="intro" class="intro hidden" aria-hidden="true">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <div class="intro-content">
+    <div id="intro-hello" class="intro-hello"></div>
+    <div id="intro-sub" class="intro-sub"></div>
+  </div>
+</div>
+
 <div class="bg-glow" aria-hidden="true"><span class="b1"></span><span class="b2"></span><span class="b3"></span></div>
 
 <!-- Icônes réutilisables -->
@@ -42,6 +65,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
   <symbol id="i-thumb" viewBox="0 0 24 24"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3Zm0 0 4-7a2.5 2.5 0 0 1 2.5 3L13 10h5.6a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.2 21H7"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 6.5"/></symbol>
   <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5Z"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
 </defs>
 </svg>
@@ -96,6 +120,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
         <button id="btn-ai" class="btn-glass"><svg class="ic"><use href="#i-sparkle"/></svg>Essayer</button>
         <button id="btn-gemini" class="btn-glass"><svg class="ic"><use href="#i-share"/></svg>Gemini</button>
       </div>
+      <button id="btn-edit" class="link center-link"><svg class="ic"><use href="#i-edit"/></svg>Modifier dans le créateur</button>
       <div id="ai-status" class="status"></div>
       <div id="ai-result"></div>
     </div>
@@ -123,6 +148,7 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
       <div id="library-kicker" class="kicker">&nbsp;</div>
       <h1>Mes tenues</h1>
     </header>
+    <button id="btn-create" class="btn-grad full create-btn"><svg class="ic"><use href="#i-edit"/></svg>Créer une tenue</button>
     <div id="lib-toggle" class="seg lib-seg"><button data-l="saved" class="on">Sauvegardées</button><button data-l="journal">Journal</button></div>
     <div id="library-list" class="lib-grid"></div>
     <div id="journal-list" class="journal hidden"></div>
@@ -259,6 +285,29 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
   </div>
 </div>
 
+<!-- Créateur de tenue -->
+<div id="creator" class="sheet hidden">
+  <div class="sheet-body creator-body">
+    <div class="grabber"></div>
+    <div class="row between">
+      <h2>Créer une tenue</h2>
+      <div class="row" style="margin:0;gap:8px">
+        <div id="c-view" class="mini-seg"><button data-v="mannequin">Mannequin</button><button data-v="flat">À plat</button></div>
+        <button id="c-close" class="btn-round" aria-label="Fermer"><svg class="ic"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div id="c-stage" class="stage c-stage"></div>
+    <div id="c-advice" class="glass advice"></div>
+    <div id="c-slots" class="chips c-slots"></div>
+    <div id="c-items" class="c-items"></div>
+    <div class="row">
+      <button id="c-save" class="btn-grad grow"><svg class="ic"><use href="#i-heart"/></svg>Sauvegarder</button>
+      <button id="c-wear" class="btn-glass grow"><svg class="ic"><use href="#i-check"/></svg>Je la porte</button>
+    </div>
+    <button id="c-clear" class="link danger full">Tout retirer</button>
+  </div>
+</div>
+
 <!-- Feuille : détail d'une tenue sauvegardée -->
 <div id="osheet" class="sheet hidden">
   <div class="sheet-body">
@@ -278,15 +327,6 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
       <button id="o-rename" class="btn-glass grow">Renommer</button>
     </div>
     <button id="o-del" class="link danger full">Supprimer cette tenue</button>
-  </div>
-</div>
-
-<!-- Animation d'ouverture -->
-<div id="intro" class="intro hidden" aria-hidden="true">
-  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
-  <div class="intro-content">
-    <div id="intro-hello" class="intro-hello"></div>
-    <div id="intro-sub" class="intro-sub"></div>
   </div>
 </div>
 

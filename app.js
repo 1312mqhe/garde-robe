@@ -718,28 +718,39 @@ function daysSince(dateStr) { return dateStr ? Math.round((new Date(isoDay()) - 
 function scoreOutfit(items, ctx) {
   const { plan, w, worn } = ctx;
   let s = 0;
-  const why = [];
+  const why = [], warn = [];
+  const nm = x => SLOT_NAME[x.slot].toLowerCase();
   // Couleurs : chaque duo de pièces
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
     const A = items[i], B = items[j];
     if (A.slot === 'shoes' && B.slot === 'shoes') continue;
-    s += colorPair(A.it.color, B.it.color) * (A.slot === 'style' || B.slot === 'style' ? 0.5 : 1);
+    const cp = colorPair(A.it.color, B.it.color);
+    s += cp * (A.slot === 'style' || B.slot === 'style' ? 0.5 : 1);
+    if (cp <= -1.2) {
+      const a = A.it.color, b = B.it.color;
+      if (a === 'imprimé' && b === 'imprimé') warn.push(`Deux imprimés (${nm(A)} et ${nm(B)}) : garde-en un seul, avec des pièces unies autour.`);
+      else if (a === 'imprimé' || b === 'imprimé') warn.push(`L'imprimé se marie mieux avec du neutre qu'avec du ${a === 'imprimé' ? b : a}.`);
+      else if (a === 'jean' && b === 'jean') warn.push('Jean sur jean : risqué. Remplace l\'un des deux par une autre matière.');
+      else if (inPairs(NEUTRAL_AVOID, a, b)) warn.push(`${a[0].toUpperCase() + a.slice(1)} et ${b} se marient mal (${nm(A)} / ${nm(B)}).`);
+      else if (inPairs(CLASH_PAIRS, a, b)) warn.push(`${a[0].toUpperCase() + a.slice(1)} et ${b} se heurtent (${nm(A)} / ${nm(B)}).`);
+    }
     s += Math.max(-3, Math.min(3, (state.prefs.aff[pairKey(A.it.id, B.it.id)] || 0) * 0.8));
   }
   const accents = [...new Set(items.filter(x => !colorById(x.it.color).neutral && x.it.color !== 'imprimé').map(x => x.it.color))];
   if (accents.length === 0) { s += 0.5; why.push('Tout en neutres : élégant et facile à porter.'); }
   else if (accents.length === 1) { s += 1.5; why.push(`Une seule couleur forte (${accents[0]}) sur une base neutre : la règle d'or.`); }
   else if (accents.length === 2 && inPairs(GOOD_PAIRS, accents[0], accents[1])) why.push(`${accents[0][0].toUpperCase() + accents[0].slice(1)} et ${accents[1]} : un duo harmonieux.`);
-  else if (accents.length >= 3) s -= 4;                           // trois couleurs vives maximum… deux, c'est mieux
+  else if (accents.length >= 3) { s -= 4; warn.push(`Trop de couleurs vives (${accents.join(', ')}) : deux maximum, idéalement une.`); }
+  else if (accents.length === 2) warn.push(`${accents[0][0].toUpperCase() + accents[0].slice(1)} et ${accents[1]} ensemble : pas évident, remplace l'un des deux par un neutre.`);
   const by = Object.fromEntries(items.map(x => [x.slot, x.it]));
   // Haut et bas : contraste, et pas exactement la même couleur
   if (by.top && by.bottom) {
-    if (by.top.color === by.bottom.color && by.top.color !== 'noir') s -= 1;
+    if (by.top.color === by.bottom.color && by.top.color !== 'noir') { s -= 1; warn.push('Le haut et le bas sont de la même couleur : crée un peu de contraste.'); }
     else if (lum(by.top.color) > lum(by.bottom.color) + 25) s += 0.4;   // clair en haut, foncé en bas
   }
   // Cravate : seulement avec une chemise, idéalement sous une veste
   if (by.tie) {
-    if (!by.top || by.top.category !== 'chemise') s -= 50;
+    if (!by.top || by.top.category !== 'chemise') { s -= 50; warn.push('Une cravate se porte avec une chemise.'); }
     s += by.outer?.category === 'veste' ? 1.5 : -2.5;
     if (by.outer?.category === 'veste') why.push('Chemise, cravate et veste : allure habillée.');
   }
@@ -752,14 +763,24 @@ function scoreOutfit(items, ctx) {
   if (plan.oneLayer) s += (by.mid && by.outer) ? -1.5 : (by.mid || by.outer) ? 0.5 : -2;
   // Chaleur et pluie
   for (const x of items) {
-    s += warmthFit(x.it, rangeOf(plan[x.slot])) * 0.8;
+    const wf = warmthFit(x.it, rangeOf(plan[x.slot]));
+    s += wf * 0.8;
+    const r = rangeOf(plan[x.slot]);
+    if (r && wf < 0) warn.push(x.it.warmth < r[0] ? `${SLOT_NAME[x.slot]} un peu léger pour la météo du jour.` : `${SLOT_NAME[x.slot]} un peu chaud pour la météo du jour.`);
     if (w.rain && (x.slot === 'outer' || x.slot === 'shoes')) s += x.it.rainOk ? 1 : -0.8;
     // Rotation : on évite ce qui a été porté ces derniers jours, on remet en avant les pièces oubliées
     const d = daysSince(worn[x.it.id]);
     if (x.slot !== 'shoes' && x.slot !== 'outer') s += d <= 1 ? -3 : d <= 3 ? -1.2 : d <= 7 ? -0.4 : d > 30 ? 0.3 : 0;
     else s += d <= 1 ? -0.5 : 0;
   }
-  return { s, why };
+  // Couches manquantes par rapport à la météo
+  if (ctx.checkLayers) {
+    if (plan.outer && plan.outer.opt === false && !by.outer && bySlot('outer').length) warn.push(w.rain ? 'Pluie prévue : ajoute une veste ou un manteau.' : 'Il fait frais : ajoute une veste ou un manteau.');
+    if (plan.mid && plan.mid.opt === false && !by.mid && bySlot('mid').length) warn.push('Il fait froid : ajoute un pull.');
+    if (!by.shoes && bySlot('shoes').length) warn.push('Il manque les chaussures.');
+    if (!by.dress && (!by.top || !by.bottom)) warn.push(!by.top ? 'Il manque un haut.' : 'Il manque un bas.');
+  }
+  return { s, why, warn: [...new Set(warn)] };
 }
 
 const bySlot = slot => state.items.filter(i => CATS[i.category].slot === slot && !state.prefs.hidden?.includes(i.id));
@@ -918,6 +939,81 @@ function updateWearBtn() {
 }
 $('#btn-wear').onclick = wearCurrent;
 
+// ---------- Créateur de tenue ----------
+const creator = { pieces: {}, slot: 'top', view: 'mannequin' };
+const CREATOR_SLOTS = ['top', 'mid', 'outer', 'dress', 'bottom', 'shoes', 'acc', 'tie', 'style'];
+function openCreator(fromPieces) {
+  creator.pieces = { ...(fromPieces || {}) };
+  creator.view = state.view;
+  const avail = CREATOR_SLOTS.filter(sl => bySlot(sl).length);
+  creator.slot = avail.includes(creator.slot) ? creator.slot : avail[0] || 'top';
+  $('#creator').classList.remove('hidden');
+  renderCreator();
+}
+function closeCreator() { $('#creator').classList.add('hidden'); }
+$('#c-close').onclick = closeCreator;
+$('#creator').onclick = e => { if (e.target.id === 'creator') closeCreator(); };
+$('#btn-create').onclick = () => openCreator(null);
+$('#btn-edit').onclick = () => openCreator(state.current?.pieces);
+$('#c-view').querySelectorAll('button').forEach(b => b.onclick = () => { creator.view = b.dataset.v; renderCreator(); });
+$('#c-clear').onclick = () => { creator.pieces = {}; renderCreator(); };
+
+function renderCreator() {
+  const p = creator.pieces;
+  $('#c-view').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === creator.view));
+  drawOutfit($('#c-stage'), p, creator.view, sl => { creator.slot = sl; renderCreator(); }, false);
+  // Emplacements disponibles (seulement ceux pour lesquels tu as des pièces)
+  const avail = CREATOR_SLOTS.filter(sl => bySlot(sl).length);
+  $('#c-slots').innerHTML = avail.map(sl => `<button data-s="${sl}" class="${sl === creator.slot ? 'on' : ''}">${SLOT_NAME[sl]}${p[sl] ? '<span class="tick">●</span>' : ''}</button>`).join('');
+  $('#c-slots').querySelectorAll('button').forEach(b => b.onclick = () => { creator.slot = b.dataset.s; renderCreator(); });
+  // Pièces de l'emplacement choisi
+  const worn = lastWornMap();
+  const items = bySlot(creator.slot);
+  $('#c-items').innerHTML = `<div class="c-item none ${!p[creator.slot] ? 'on' : ''}" data-id="">Aucun</div>` + items.map(i => {
+    const d = daysSince(worn[i.id]);
+    return `<div class="c-item ${p[creator.slot] === i.id ? 'on' : ''}" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}">${d <= 3 ? `<span class="w">${d === 0 ? 'portée auj.' : `portée il y a ${d} j`}</span>` : ''}</div>`;
+  }).join('');
+  $('#c-items').querySelectorAll('.c-item').forEach(el => el.onclick = () => {
+    const id = el.dataset.id;
+    if (id) {
+      p[creator.slot] = id;
+      // Une robe remplace le haut et le bas, et inversement
+      if (creator.slot === 'dress') { delete p.top; delete p.bottom; delete p.tie; }
+      if (creator.slot === 'top' || creator.slot === 'bottom') delete p.dress;
+    } else delete p[creator.slot];
+    navigator.vibrate?.(8);
+    renderCreator();
+  });
+  renderAdvice();
+}
+
+// Avis de l'assistant : note sur 5 et conseils, selon les mêmes règles que les suggestions
+function renderAdvice() {
+  const p = creator.pieces;
+  const parts = Object.entries(p).map(([slot, id]) => ({ slot, it: state.items.find(i => i.id === id) })).filter(x => x.it);
+  const box = $('#c-advice');
+  if (parts.length < 2) { box.innerHTML = `<span class="muted small">Choisis au moins deux pièces : je te donnerai mon avis de styliste.</span>`; return; }
+  const w = weatherSummary();
+  const r = scoreOutfit(parts, { plan: planFor(w), w, worn: {}, checkLayers: true });
+  const stars = Math.max(1, Math.min(5, 5 - r.warn.length + (r.warn.length && r.why.length ? 0 : 0)));
+  const verdict = ['', 'À retravailler', 'Peut mieux faire', 'Pas mal, quelques ajustements', 'Très bonne tenue', 'Parfait, rien à redire !'][stars];
+  const okList = r.why.length ? r.why : (r.warn.length ? [] : ['Couleurs et matières bien équilibrées.']);
+  box.innerHTML = `<div><span class="stars">${'★'.repeat(stars)}<span class="off">${'★'.repeat(5 - stars)}</span></span><span class="verdict">${verdict}</span></div>
+    <ul>${okList.map(t => `<li class="ok">${esc(t)}</li>`).join('')}${r.warn.slice(0, 4).map(t => `<li class="ko">${esc(t)}</li>`).join('')}</ul>`;
+}
+async function saveCreated(wear) {
+  const p = { ...creator.pieces };
+  if (!Object.keys(p).length) { toast('Choisis d\'abord quelques pièces.'); return; }
+  state.current = { pieces: p, key: outfitKey(p) };
+  if (wear) { await wearCurrent(); }
+  else { await saveCurrent(); }
+  closeCreator();
+  showTab(wear ? 'today' : 'library');
+  if (wear) { renderStage(); $('#outfit-hint').textContent = 'Ta tenue, créée par toi.'; }
+}
+$('#c-save').onclick = () => saveCreated(false);
+$('#c-wear').onclick = () => saveCreated(true);
+
 // Vue mannequin ou « à plat »
 function setView(v) {
   state.view = v;
@@ -941,12 +1037,11 @@ function mannequinSvg() {
     <ellipse cx="150" cy="484" rx="46" ry="7" fill="rgba(255,255,255,.1)"/>
   </svg>`;
 }
-function renderStage() {
-  const stage = $('#stage');
-  const p = state.current.pieces;
-  stage.classList.toggle('flat', state.view === 'flat');
-  let html = state.view === 'flat' ? '' : mannequinSvg();
-  if (state.view === 'flat') {
+// Dessine une tenue dans un cadre (mannequin ou à plat). onTap(slot) est appelé quand on touche une pièce.
+function drawOutfit(stage, p, view, onTap, emptyHint = true) {
+  stage.classList.toggle('flat', view === 'flat');
+  let html;
+  if (view === 'flat') {
     // Moodboard : les pièces côte à côte, légèrement inclinées comme posées sur une table
     const order = ['outer', 'mid', 'top', 'dress', 'tie', 'bottom', 'acc', 'shoes', 'style'].filter(sl => p[sl] && state.items.find(i => i.id === p[sl]));
     const big = new Set(['outer', 'dress', 'bottom']);
@@ -955,22 +1050,25 @@ function renderStage() {
       const it = state.items.find(i => i.id === p[sl]);
       return `<div class="flat-cell ${big.has(sl) ? 'big' : ''}" style="--tilt:${tilt[k]}deg"><img class="piece-flat" data-slot="${sl}" src="${itemUrl(it)}" alt="${esc(itemName(it))}"></div>`;
     }).join('') + '</div>';
-    stage.innerHTML = html;
-    stage.querySelectorAll('.piece-flat').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) swapPiece(el.dataset.slot); });
+    if (!order.length) html += `<div class="missing" style="top:45%;color:#555;background:rgba(0,0,0,.06)">Choisis des pièces ci-dessous</div>`;
+  } else {
+    html = mannequinSvg();
+    for (const slot of SLOT_ORDER) {
+      const it = state.items.find(i => i.id === p[slot]);
+      if (!it) continue;
+      const L = LAYOUT[slot];
+      html += `<img class="piece tap" data-slot="${slot}" src="${itemUrl(it)}" alt="${esc(itemName(it))}"
+        style="left:${L.l}%;top:${L.t}%;width:${L.w}%;height:${L.h}%;z-index:${L.z}">`;
+    }
+    if (emptyHint && !p.top && !p.dress) html += `<div class="missing" style="top:30%">Ajoute un haut</div>`;
+    if (emptyHint && !p.bottom && !p.dress) html += `<div class="missing" style="top:62%">Ajoute un bas</div>`;
   }
-  if (state.view !== 'flat') for (const slot of SLOT_ORDER) {
-    const it = state.items.find(i => i.id === p[slot]);
-    if (!it) continue;
-    const L = LAYOUT[slot];
-    html += `<img class="piece tap" data-slot="${slot}" src="${itemUrl(it)}" alt="${esc(itemName(it))}"
-      style="left:${L.l}%;top:${L.t}%;width:${L.w}%;height:${L.h}%;z-index:${L.z}">`;
-  }
-  if (state.view !== 'flat') {
-  if (!p.top && !p.dress) html += `<div class="missing" style="top:30%">Ajoute un haut</div>`;
-  if (!p.bottom && !p.dress) html += `<div class="missing" style="top:62%">Ajoute un bas</div>`;
   stage.innerHTML = html;
-  }
-  stage.querySelectorAll('.piece').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) swapPiece(el.dataset.slot); });
+  stage.querySelectorAll('.piece,.piece-flat').forEach(el => el.onclick = () => { if (!stage.dataset.swiped) onTap?.(el.dataset.slot); });
+}
+function renderStage() {
+  const p = state.current.pieces;
+  drawOutfit($('#stage'), p, state.view, swapPiece);
   // Liste des pièces sous le mannequin
   const strip = $('#pieces-strip');
   strip.innerHTML = SLOT_ORDER.filter(s => p[s] && state.items.find(i => i.id === p[s])).map(s => {
