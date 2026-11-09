@@ -7,13 +7,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Garde-robe">
-<meta name="theme-color" content="#0c0d0a">
+<meta name="theme-color" content="#090c0a">
 <meta name="color-scheme" content="dark">
 <title>Garde-robe</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('theme')||'sapin'}catch(e){}</script>
 </head>
 <body>
 <div class="bg-glow" aria-hidden="true"></div>
@@ -21,7 +22,7 @@
 <!-- Icônes réutilisables -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b7a3c"/><stop offset="1" stop-color="#a3b16a"/></linearGradient>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--a1)"/><stop offset="1" style="stop-color:var(--a2)"/></linearGradient>
   </defs>
   <symbol id="i-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></symbol>
   <symbol id="i-hanger" viewBox="0 0 24 24"><path d="M12 7.2a2.2 2.2 0 1 1 2.2-2.2c0 1.2-2.2 1.6-2.2 3v1.2L3 15.6c-.9.6-.5 2 .6 2h16.8c1.1 0 1.5-1.4.6-2L12 9.2"/></symbol>
@@ -115,6 +116,8 @@
       <label class="field">Ton prénom
         <input id="user-name" type="text" placeholder="Mahé" autocomplete="given-name">
       </label>
+      <div class="field">Couleur</div>
+      <div id="themes" class="themes"></div>
       <label class="switch"><input type="checkbox" id="intro-on" checked><span class="track"></span>Animation d'ouverture</label>
       <label class="switch"><input type="checkbox" id="fact-on" checked><span class="track"></span>Anecdote du jour</label>
       <button id="intro-replay" class="link"><svg class="ic"><use href="#i-sparkle"/></svg>Revoir l'animation</button>
@@ -248,29 +251,11 @@
 
 <!-- Animation d'ouverture -->
 <div id="intro" class="intro hidden" aria-hidden="true">
-  <div class="intro-grid"></div>
-  <div class="reactor">
-    <svg viewBox="0 0 200 200">
-      <defs>
-        <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3ecbd"/><stop offset=".5" stop-color="#6b7a3c"/><stop offset="1" stop-color="#a3b16a"/></linearGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      </defs>
-      <g filter="url(#glow)" fill="none" stroke="url(#rg)">
-        <circle class="r r1" cx="100" cy="100" r="92" stroke-width="1" stroke-dasharray="2 6"/>
-        <circle class="r r2" cx="100" cy="100" r="80" stroke-width="3" stroke-dasharray="60 20 10 20"/>
-        <circle class="r r3" cx="100" cy="100" r="66" stroke-width="1.2" stroke-dasharray="120 30"/>
-        <circle class="r r4" cx="100" cy="100" r="54" stroke-width="6" stroke-dasharray="4 8" opacity=".7"/>
-        <circle class="r r5" cx="100" cy="100" r="40" stroke-width="1.5" stroke-dasharray="40 12"/>
-        <circle class="core" cx="100" cy="100" r="22" fill="url(#rg)" stroke="none"/>
-      </g>
-      <circle class="scan" cx="100" cy="100" r="92" fill="none" stroke="#e3ecbd" stroke-width="2" stroke-dasharray="40 538" filter="url(#glow)"/>
-    </svg>
-  </div>
-  <div class="intro-text">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <div class="intro-content">
     <div id="intro-hello" class="intro-hello"></div>
-    <div id="intro-lines" class="intro-lines"></div>
+    <div id="intro-sub" class="intro-sub"></div>
   </div>
-  <div class="intro-skip">Touche pour passer</div>
 </div>
 
 <div id="toast" class="toast hidden"></div>

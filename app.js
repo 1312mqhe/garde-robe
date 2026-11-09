@@ -526,35 +526,52 @@ function renderFact() {
   box.classList.remove('hidden');
 }
 
-// Animation d'ouverture façon assistant
+// Animation d'ouverture : salut qui apparaît lettre par lettre sur un halo de couleur
 function runIntro() {
   const el = $('#intro');
   el.classList.remove('hidden', 'leave');
-  const hello = $('#intro-hello'), lines = $('#intro-lines');
-  lines.innerHTML = '';
-  const word = `${greetingWord()} ${prefs.name}`.trim();
-  let done = false, timers = [];
+  const hello = $('#intro-hello'), sub = $('#intro-sub');
+  const letters = (txt, d0) => [...txt].map((ch, i) => `<span class="ch" style="animation-delay:${d0 + i * 45}ms">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('');
+  const word = greetingWord();
+  hello.innerHTML = letters(word, 250) + (prefs.name ? `<span class="name">${letters(prefs.name, 250 + word.length * 45 + 120)}</span>` : '');
+  sub.classList.remove('show');
+  let done = false; const timers = [];
   const later = (fn, ms) => timers.push(setTimeout(fn, ms));
   const finish = () => {
     if (done) return; done = true;
     timers.forEach(clearTimeout);
     el.classList.add('leave');
-    setTimeout(() => el.classList.add('hidden'), 650);
+    setTimeout(() => el.classList.add('hidden'), 750);
   };
   el.onclick = finish;
-  hello.innerHTML = '<span class="cursor"></span>';
-  [...word].forEach((ch, i) => later(() => { hello.innerHTML = esc(word.slice(0, i + 1)) + '<span class="cursor"></span>'; }, 350 + i * 70));
-  const t0 = 350 + word.length * 70 + 200;
-  const addLine = txt => { const d = document.createElement('div'); d.textContent = txt; lines.appendChild(d); };
-  later(() => addLine('Systèmes en ligne'), t0);
+  const tSub = 250 + (word.length + prefs.name.length) * 45 + 700;
   later(() => {
     const c = state.weather?.current;
-    addLine(c ? `Météo${state.loc?.name ? ' ' + state.loc.name : ''} : ${Math.round(c.temperature_2m)}°, ${(WMO[c.weather_code] || ['', 'analysée'])[1].toLowerCase()}` : 'Analyse de la météo…');
-  }, t0 + 450);
-  later(() => addLine(`Dressing : ${state.items.length} pièce${state.items.length > 1 ? 's' : ''} analysée${state.items.length > 1 ? 's' : ''}`), t0 + 900);
-  later(() => addLine(state.current ? 'Tenue du jour prête ✓' : 'Prêt ✓'), t0 + 1350);
-  later(finish, t0 + 2200);
+    sub.textContent = c ? `${Math.round(c.temperature_2m)}°${state.loc?.name ? ' à ' + state.loc.name : ''} · ta tenue est prête` : 'Ta tenue du jour est prête';
+    sub.classList.add('show');
+  }, tSub);
+  later(finish, tSub + 1300);
 }
+
+// Thèmes de couleur
+const THEMES = [
+  ['sapin', 'Vert sapin', 'linear-gradient(135deg,#1d5a42,#3d8e68)'],
+  ['emeraude', 'Émeraude', 'linear-gradient(135deg,#0a6b50,#22a47c)'],
+  ['sauge', 'Sauge', 'linear-gradient(135deg,#55705e,#8ba995)'],
+  ['olive', 'Olive', 'linear-gradient(135deg,#6b7a3c,#a3b16a)'],
+  ['graphite', 'Graphite', 'linear-gradient(135deg,#d9d9de,#f5f5f7)'],
+  ['violet', 'Violet', 'linear-gradient(135deg,#8b6cff,#ff5ca8)'],
+];
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('theme', t); } catch {}
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', bg);
+  $('#themes').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+}
+$('#themes').innerHTML = THEMES.map(([id, label, g]) => `<button data-t="${id}"><i style="background:${g}"></i>${label}</button>`).join('');
+$('#themes').querySelectorAll('button').forEach(b => b.onclick = () => applyTheme(b.dataset.t));
+applyTheme(document.documentElement.dataset.theme || 'sapin');
 
 function renderKicker() {
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
