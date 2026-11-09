@@ -1,5 +1,5 @@
 // Garde l'appli et le modèle de détourage en cache pour qu'ils marchent hors ligne
-const CACHE = 'garde-robe-v8';
+const CACHE = 'garde-robe-v9';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'facts.js', 'manifest.json', 'icons/icon-180.png', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
