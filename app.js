@@ -531,9 +531,9 @@ function runIntro() {
   const el = $('#intro');
   el.classList.remove('hidden', 'leave');
   const hello = $('#intro-hello'), sub = $('#intro-sub');
-  const letters = (txt, d0) => [...txt].map((ch, i) => `<span class="ch" style="animation-delay:${d0 + i * 45}ms">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('');
+  const letters = (txt, d0) => [...txt].map((ch, i) => `<span class="ch" style="animation-delay:${d0 + i * 65}ms">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('');
   const word = greetingWord();
-  hello.innerHTML = letters(word, 250) + (prefs.name ? `<span class="name">${letters(prefs.name, 250 + word.length * 45 + 120)}</span>` : '');
+  hello.innerHTML = letters(word, 250) + (prefs.name ? `<span class="name">${letters(prefs.name, 250 + word.length * 65 + 250)}</span>` : '');
   sub.classList.remove('show');
   let done = false; const timers = [];
   const later = (fn, ms) => timers.push(setTimeout(fn, ms));
@@ -541,16 +541,16 @@ function runIntro() {
     if (done) return; done = true;
     timers.forEach(clearTimeout);
     el.classList.add('leave');
-    setTimeout(() => el.classList.add('hidden'), 750);
+    setTimeout(() => el.classList.add('hidden'), 950);
   };
   el.onclick = finish;
-  const tSub = 250 + (word.length + prefs.name.length) * 45 + 700;
+  const tSub = 250 + (word.length + prefs.name.length) * 65 + 1300;
   later(() => {
     const c = state.weather?.current;
     sub.textContent = c ? `${Math.round(c.temperature_2m)}°${state.loc?.name ? ' à ' + state.loc.name : ''} · ta tenue est prête` : 'Ta tenue du jour est prête';
     sub.classList.add('show');
   }, tSub);
-  later(finish, tSub + 1300);
+  later(finish, tSub + 2100);
 }
 
 // Thèmes de couleur
@@ -560,6 +560,14 @@ const THEMES = [
   ['sauge', 'Sauge', 'linear-gradient(135deg,#55705e,#8ba995)'],
   ['olive', 'Olive', 'linear-gradient(135deg,#6b7a3c,#a3b16a)'],
   ['graphite', 'Graphite', 'linear-gradient(135deg,#d9d9de,#f5f5f7)'],
+  ['petrole', 'Bleu pétrole', 'linear-gradient(135deg,#0f4c5c,#2a8a9a)'],
+  ['nuit', 'Bleu nuit', 'linear-gradient(135deg,#1f3a7a,#4a70c9)'],
+  ['lavande', 'Lavande', 'linear-gradient(135deg,#5f5598,#9a8fd1)'],
+  ['rose', 'Rose poudré', 'linear-gradient(135deg,#a4637a,#d9a0b2)'],
+  ['bordeaux', 'Bordeaux', 'linear-gradient(135deg,#5e1a2c,#9c3a52)'],
+  ['terracotta', 'Terracotta', 'linear-gradient(135deg,#9a4a2e,#d07a52)'],
+  ['champagne', 'Champagne', 'linear-gradient(135deg,#9c7f4a,#d8bd85)'],
+  ['sable', 'Sable', 'linear-gradient(135deg,#8a7a66,#c4b39b)'],
   ['violet', 'Violet', 'linear-gradient(135deg,#8b6cff,#ff5ca8)'],
 ];
 function applyTheme(t) {
