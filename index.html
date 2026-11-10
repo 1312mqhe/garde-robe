@@ -276,6 +276,10 @@ if(localStorage.getItem('introOn')!=='0'&&!sessionStorage.getItem('introSeen'))d
       <select id="f-color" hidden></select>
       <div class="field">Chaleur</div>
       <div class="seg" id="f-warmth"></div>
+      <div id="f-sleeves-wrap" class="hidden">
+        <div class="field">Manches</div>
+        <div class="seg" id="f-sleeves"><button type="button" data-s="courtes">Courtes</button><button type="button" data-s="longues">Longues</button></div>
+      </div>
       <label class="switch"><input type="checkbox" id="f-rain"><span class="track"></span>Supporte la pluie</label>
       <label class="field">Nom (facultatif)
         <input id="f-name" type="text" placeholder="Ex : chemise en lin bleue">

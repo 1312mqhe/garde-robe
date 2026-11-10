@@ -61,17 +61,18 @@ const inPairs = (list, a, b) => list.some(([x, y]) => (x === a && y === b) || (x
 // la plus fine devant et plus étroite, pour que chaque pièce reste visible.
 const LAYOUT = {
   acc:    { l: 34, t: 12, w: 32, h: 12, z: 8 },
-  tie:    { l: 44, t: 20, w: 12, h: 22, z: 6 },
+  tie:    { l: 44, t: 20, w: 12, h: 22, z: 7 },
   style:  { l: 70, t: 44, w: 24, h: 18, z: 9 },
   outer:  { l: 14, t: 17, w: 72, h: 44, z: 3 },
   mid:    { l: 21, t: 18.5, w: 58, h: 33, z: 4 },
-  top:    { l: 29, t: 20, w: 42, h: 28, z: 5 },
+  under:  { l: 22, t: 18.5, w: 56, h: 38, z: 5 },
+  top:    { l: 29, t: 20, w: 42, h: 28, z: 6 },
   dress:  { l: 22, t: 19, w: 56, h: 58, z: 4 },
   bottom: { l: 26, t: 46, w: 48, h: 41, z: 2 },
   shoes:  { l: 25, t: 86, w: 50, h: 12, z: 1 },
 };
-const SLOT_ORDER = ['acc', 'outer', 'mid', 'top', 'tie', 'dress', 'bottom', 'shoes', 'style'];
-const SLOT_NAME = { acc: 'Écharpe…', outer: 'Veste/manteau', mid: 'Pull', top: 'Haut', tie: 'Cravate', dress: 'Robe', bottom: 'Bas', shoes: 'Chaussures', style: 'Accessoire' };
+const SLOT_ORDER = ['acc', 'outer', 'mid', 'under', 'top', 'tie', 'dress', 'bottom', 'shoes', 'style'];
+const SLOT_NAME = { acc: 'Écharpe…', outer: 'Veste/manteau', mid: 'Pull / surchemise', under: 'Sous-couche', top: 'Haut', tie: 'Cravate', dress: 'Robe', bottom: 'Bas', shoes: 'Chaussures', style: 'Accessoire' };
 
 // ---------- Petite base IndexedDB ----------
 const db = {
@@ -299,8 +300,21 @@ function setWarmth(w) {
   state.editing.warmth = w;
   $('#f-warmth').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.w === w));
 }
+function setSleeves(v) {
+  state.editing.sleeves = v;
+  $('#f-sleeves').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === v));
+}
+$('#f-sleeves').querySelectorAll('button').forEach(b => b.onclick = () => { state.editing.sleevesTouched = true; setSleeves(b.dataset.s); });
+function syncSleevesField() {
+  const c = $('#f-cat').value;
+  const show = c === 'haut' || c === 'chemise';
+  $('#f-sleeves-wrap').classList.toggle('hidden', !show);
+  if (show && !state.editing.sleevesTouched && !state.editing.id) setSleeves(c === 'chemise' ? 'longues' : 'courtes');
+  else if (show) setSleeves(state.editing.sleeves || (c === 'chemise' ? 'longues' : 'courtes'));
+}
 $('#f-cat').onchange = () => {
   const c = $('#f-cat').value;
+  syncSleevesField();
   if (!state.editing.warmthTouched) setWarmth(CATS[c].warmth);
   if (c === 'manteau' && !state.editing.id) $('#f-rain').checked = true;
 };
@@ -326,6 +340,7 @@ function openSheet(item) {
     $('#f-name').value = item.name || '';
     setWarmth(item.warmth);
     syncPickers();
+    syncSleevesField();
   }
   $('#sheet').classList.remove('hidden');
 }
@@ -348,6 +363,7 @@ async function handlePhoto(file) {
   $('#f-rain').checked = false;
   $('#f-name').value = '';
   setWarmth(CATS.haut.warmth);
+  syncSleevesField();
   $('#f-color').value = await detectColor(original);
   syncPickers();
   $('#f-save').disabled = true;
@@ -387,6 +403,7 @@ $('#f-save').onclick = async () => {
     color: $('#f-color').value,
     warmth: ed.warmth || CATS[$('#f-cat').value].warmth,
     rainOk: $('#f-rain').checked,
+    sleeves: ['haut', 'chemise'].includes($('#f-cat').value) ? (ed.sleeves || ($('#f-cat').value === 'chemise' ? 'longues' : 'courtes')) : undefined,
     name: $('#f-name').value.trim(),
     createdAt: ed.createdAt || Date.now(),
   };
@@ -743,6 +760,7 @@ function scoreOutfit(items, ctx) {
   else if (accents.length >= 3) { s -= 4; warn.push(`Trop de couleurs vives (${accents.join(', ')}) : deux maximum, idéalement une.`); }
   else if (accents.length === 2) warn.push(`${accents[0][0].toUpperCase() + accents[0].slice(1)} et ${accents[1]} ensemble : pas évident, remplace l'un des deux par un neutre.`);
   const by = Object.fromEntries(items.map(x => [x.slot, x.it]));
+  if (new Set(items.map(x => x.it.id)).size < items.length) s -= 100;   // une même pièce à deux endroits
   // Haut et bas : contraste, et pas exactement la même couleur
   if (by.top && by.bottom) {
     if (by.top.color === by.bottom.color && by.top.color !== 'noir') { s -= 1; warn.push('Le haut et le bas sont de la même couleur : crée un peu de contraste.'); }
@@ -754,18 +772,48 @@ function scoreOutfit(items, ctx) {
     s += by.outer?.category === 'veste' ? 1.5 : -2.5;
     if (by.outer?.category === 'veste') why.push('Chemise, cravate et veste : allure habillée.');
   }
+  // Layering 1 : manches longues sous un t-shirt à manches courtes
+  if (by.under) {
+    const t = w.cold;
+    if (!by.top || by.top.category !== 'haut' || sleevesOf(by.top) === 'longues') { s -= 50; warn.push('La sous-couche à manches longues se porte sous un t-shirt à manches courtes.'); }
+    else if (by.under.id === by.top.id) s -= 50;
+    else {
+      s += t >= 8 && t <= 20 ? 2.2 : -2.5;                          // idéal en mi-saison, joue le rôle d'une couche
+      if (t > 20) warn.push('Il fait un peu chaud pour une sous-couche à manches longues.');
+      if (by.under.color === by.top.color) { s -= 1.5; warn.push('Sous-couche et t-shirt de la même couleur : le layering ne se voit pas, joue sur le contraste.'); }
+      else if (Math.abs(lum(by.under.color) - lum(by.top.color)) > 40) { s += 0.6; why.push(`Layering : manches longues ${by.under.color} sous un t-shirt ${by.top.color}, l'astuce qui donne du relief.`); }
+      if (!colorById(by.under.color).neutral) { s -= 1; warn.push('Une sous-couche neutre (blanc, gris, noir, beige) est plus facile à porter.'); }
+      if (by.mid && by.mid.category === 'pull') { s -= 4; warn.push('Sous-couche + t-shirt + pull : trop de couches au niveau du buste.'); }
+    }
+  }
+  // Pas plus de trois couches visibles au niveau du buste
+  const layers = ['under', 'top', 'mid', 'outer'].filter(k => by[k]).length;
+  if (layers > 3) { s -= 6 * (layers - 3); warn.push('Beaucoup de couches au niveau du buste : garde-en trois maximum.'); }
+  if (by.under && by.mid && by.mid.category === 'chemise') { s -= 1.5; warn.push('Sous-couche et chemise ouverte en même temps : choisis l\'un ou l\'autre.'); }
+  // Layering 2 : chemise portée ouverte sur un t-shirt
+  if (by.mid && by.mid.category === 'chemise') {
+    if (!by.top || by.top.category !== 'haut') { s -= 50; warn.push('Une surchemise se porte ouverte sur un t-shirt.'); }
+    else if (by.mid.id === by.top.id) s -= 50;
+    else {
+      s += w.cold >= 12 && w.cold <= 24 ? 0.6 : -1.5;
+      if (by.mid.color === by.top.color) s -= 1.2;
+      else why.push(`Chemise ${by.mid.color} ouverte sur un t-shirt ${by.top.color} : superposition décontractée.`);
+      if (by.tie) s -= 50;
+      if (plan.mid && plan.mid.opt === false) { s -= 3; warn.push('Il fait froid : un pull réchauffera plus qu\'une chemise ouverte.'); }
+    }
+  }
   // Accessoire de style : assorti aux chaussures (règle cuir) ou neutre
   if (by.style) {
     s -= 0.4;
     if (by.shoes && by.style.color === by.shoes.color) { s += 1.2; why.push('Accessoire assorti aux chaussures.'); }
   }
   // Superposition : en mi-saison, une seule couche suffit
-  if (plan.oneLayer) s += (by.mid && by.outer) ? -1.5 : (by.mid || by.outer) ? 0.5 : -2;
+  if (plan.oneLayer) { const extra = ['under', 'mid', 'outer'].filter(k => by[k]).length; s += extra >= 2 ? -1.5 : extra ? 0.5 : -2; }
   // Chaleur et pluie
   for (const x of items) {
-    const wf = warmthFit(x.it, rangeOf(plan[x.slot]));
+    const r = (x.slot === 'mid' && x.it.category === 'chemise') ? null : rangeOf(plan[x.slot]);   // la surchemise a sa propre règle
+    const wf = warmthFit(x.it, r);
     s += wf * 0.8;
-    const r = rangeOf(plan[x.slot]);
     if (r && wf < 0) warn.push(x.it.warmth < r[0] ? `${SLOT_NAME[x.slot]} un peu léger pour la météo du jour.` : `${SLOT_NAME[x.slot]} un peu chaud pour la météo du jour.`);
     if (w.rain && (x.slot === 'outer' || x.slot === 'shoes')) s += x.it.rainOk ? 1 : -0.8;
     // Rotation : on évite ce qui a été porté ces derniers jours, on remet en avant les pièces oubliées
@@ -783,7 +831,17 @@ function scoreOutfit(items, ctx) {
   return { s, why, warn: [...new Set(warn)] };
 }
 
-const bySlot = slot => state.items.filter(i => CATS[i.category].slot === slot && !state.prefs.hidden?.includes(i.id));
+// Manches : par défaut courtes pour un t-shirt, longues pour une chemise
+const sleevesOf = it => it.sleeves || (it.category === 'chemise' ? 'longues' : 'courtes');
+// Pièces utilisables à chaque emplacement. Le layering ajoute deux usages :
+//  - sous-couche : un haut fin à manches longues, porté sous un t-shirt à manches courtes
+//  - surchemise : une chemise portée ouverte par-dessus un t-shirt
+const bySlot = slot => state.items.filter(i => {
+  if (state.prefs.hidden?.includes(i.id)) return false;
+  if (slot === 'under') return i.category === 'haut' && sleevesOf(i) === 'longues' && i.warmth <= 3;
+  if (slot === 'mid') return CATS[i.category].slot === 'mid' || i.category === 'chemise';
+  return CATS[i.category].slot === slot;
+});
 
 // Pièces possibles pour un emplacement, classées par adéquation à la météo
 function candidatesFor(slot, plan, w, limit = 8) {
@@ -806,8 +864,8 @@ function buildIdeas() {
   for (const t of candidatesFor('top', plan, w)) for (const b of candidatesFor('bottom', plan, w)) beams.push([{ slot: 'top', it: t }, { slot: 'bottom', it: b }]);
   if (w.cold >= 9 || !beams.length) for (const d of candidatesFor('dress', plan, w)) beams.push([{ slot: 'dress', it: d }]);
   if (!beams.length) return { ideas: [], plan };
-  const step = (slot, { opt = true, need = null } = {}) => {
-    const cands = candidatesFor(slot, plan, w);
+  const step = (slot, { opt = true, need = null, filter = null } = {}) => {
+    const cands = candidatesFor(slot, plan, w).filter(i => !filter || filter(i));
     if (!cands.length) return;
     const next = [];
     for (const b of beams) {
@@ -818,7 +876,11 @@ function buildIdeas() {
     beams = next.map(b => [evalP(b), b]).sort((x, y) => y[0] - x[0] || outfitKey(Object.fromEntries(x[1].map(p => [p.slot, p.it.id]))).localeCompare(outfitKey(Object.fromEntries(y[1].map(p => [p.slot, p.it.id]))))).slice(0, BEAM).map(x => x[1]);
   };
   step('shoes', { opt: false });
+  // Sous-couche manches longues (seulement si le haut est un t-shirt à manches courtes)
+  step('under', { need: b => b.some(p => p.slot === 'top' && p.it.category === 'haut' && sleevesOf(p.it) === 'courtes') });
   if (plan.mid) step('mid', { opt: plan.mid.opt !== false });
+  // Par temps doux, une chemise ouverte sur le t-shirt reste possible
+  else step('mid', { need: b => b.some(p => p.slot === 'top' && p.it.category === 'haut'), filter: i => i.category === 'chemise' });
   if (plan.outer) step('outer', { opt: plan.outer.opt !== false });
   step('tie', { need: b => b.some(p => p.slot === 'top' && p.it.category === 'chemise') });
   if (plan.acc) step('acc', { opt: plan.acc.opt !== false });
@@ -941,7 +1003,7 @@ $('#btn-wear').onclick = wearCurrent;
 
 // ---------- Créateur de tenue ----------
 const creator = { pieces: {}, slot: 'top', view: 'mannequin' };
-const CREATOR_SLOTS = ['top', 'mid', 'outer', 'dress', 'bottom', 'shoes', 'acc', 'tie', 'style'];
+const CREATOR_SLOTS = ['top', 'under', 'mid', 'outer', 'dress', 'bottom', 'shoes', 'acc', 'tie', 'style'];
 function openCreator(fromPieces) {
   creator.pieces = { ...(fromPieces || {}) };
   creator.view = state.view;
@@ -1439,4 +1501,4 @@ async function init() {
 init();
 
 // Pour les tests
-window.__gr = { state, suggest, planFor, buildIdeas, db, kv };
+window.__gr = { state, suggest, planFor, buildIdeas, db, kv, scoreOutfit, weatherSummary };
