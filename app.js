@@ -17,7 +17,7 @@ const CATS = {
   chaussures: { label: 'Chaussures', short: 'Chaussures', slot: 'shoes', warmth: 3 },
   accessoire: { label: 'Écharpe, bonnet, gants', short: 'Écharpe…', slot: 'acc', warmth: 4 },
   cravate:    { label: 'Cravate, nœud papillon', short: 'Cravate', slot: 'tie', warmth: 3 },
-  style:      { label: 'Ceinture, sac, bijou, casquette', short: 'Accessoire', slot: 'style', warmth: 3 },
+  style:      { label: 'Ceinture, sac, montre, bijou, casquette', short: 'Accessoire', slot: 'style', warmth: 3 },
 };
 const WARMTH = ['Très léger', 'Léger', 'Moyen', 'Chaud', 'Très chaud'];
 
