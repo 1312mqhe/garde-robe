@@ -388,3 +388,5 @@ button:active,.filebtn:active,.tile:active,.lcard:active,.pick-card:active{trans
 .c-item .w{position:absolute;left:6px;right:6px;bottom:5px;font-size:9.5px;text-align:center;color:#fff;background:rgba(0,0,0,.45);border-radius:999px;padding:1px 4px}
 
 body.no-advice .why,body.no-advice #c-advice{display:none!important}
+
+.swatches button.none{width:auto;padding:0 12px;border-radius:17px;background:rgba(255,255,255,.08);color:var(--txt);font-size:13px}

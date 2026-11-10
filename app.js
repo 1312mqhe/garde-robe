@@ -30,14 +30,23 @@ const COLORS = [
   { id: 'bleu marine', rgb: [36, 44, 82], neutral: true },
   { id: 'jean', rgb: [78, 105, 145], neutral: true },
   { id: 'kaki', rgb: [110, 108, 66], neutral: true },
+  { id: 'anthracite', rgb: [62, 64, 68], neutral: true },
+  { id: 'crème', rgb: [238, 230, 210], neutral: true },
+  { id: 'camel', rgb: [190, 140, 85], neutral: true },
   { id: 'bleu', rgb: [45, 95, 200] },
   { id: 'bleu clair', rgb: [150, 190, 228] },
+  { id: 'turquoise', rgb: [40, 165, 165] },
   { id: 'vert', rgb: [55, 130, 75] },
+  { id: 'vert sapin', rgb: [28, 78, 55] },
   { id: 'jaune', rgb: [235, 200, 55] },
+  { id: 'moutarde', rgb: [196, 152, 38] },
   { id: 'orange', rgb: [228, 120, 45] },
+  { id: 'rouille', rgb: [165, 78, 40] },
+  { id: 'corail', rgb: [240, 125, 105] },
   { id: 'rouge', rgb: [200, 40, 45] },
   { id: 'bordeaux', rgb: [110, 28, 42] },
   { id: 'rose', rgb: [236, 152, 172] },
+  { id: 'lavande', rgb: [180, 162, 215] },
   { id: 'violet', rgb: [118, 72, 150] },
   { id: 'imprimé', rgb: null },
 ];
@@ -46,11 +55,16 @@ const colorById = id => COLORS.find(c => c.id === id) || COLORS[0];
 const GOOD_PAIRS = [
   ['bleu', 'bleu clair'], ['bleu clair', 'rose'], ['bordeaux', 'rose'], ['vert', 'bleu clair'], ['bordeaux', 'bleu clair'],
   ['jaune', 'bleu'], ['orange', 'bleu'], ['rouge', 'bleu clair'], ['violet', 'rose'], ['vert', 'jaune'], ['vert', 'rose'], ['jaune', 'bleu clair'],
+  ['moutarde', 'bleu'], ['moutarde', 'bleu clair'], ['moutarde', 'bordeaux'], ['moutarde', 'vert sapin'], ['rouille', 'vert sapin'], ['rouille', 'bleu'],
+  ['rouille', 'bleu clair'], ['vert sapin', 'bordeaux'], ['vert sapin', 'bleu clair'], ['vert sapin', 'rose'], ['turquoise', 'corail'], ['turquoise', 'bleu'],
+  ['corail', 'bleu clair'], ['corail', 'bleu'], ['lavande', 'bleu clair'], ['lavande', 'rose'], ['lavande', 'vert sapin'], ['violet', 'lavande'],
 ];
 // Couleurs vives qui se heurtent
 const CLASH_PAIRS = [
   ['rouge', 'rose'], ['rouge', 'orange'], ['rouge', 'bordeaux'], ['rouge', 'violet'], ['rouge', 'vert'], ['orange', 'rose'],
   ['orange', 'violet'], ['orange', 'bordeaux'], ['jaune', 'violet'], ['jaune', 'rose'], ['vert', 'violet'], ['jaune', 'orange'],
+  ['rouille', 'rose'], ['rouille', 'rouge'], ['rouille', 'orange'], ['corail', 'rouge'], ['corail', 'rose'], ['corail', 'orange'], ['moutarde', 'violet'],
+  ['moutarde', 'rose'], ['moutarde', 'jaune'], ['turquoise', 'vert'], ['turquoise', 'rouge'], ['lavande', 'rouge'], ['lavande', 'orange'], ['lavande', 'jaune'],
 ];
 // Neutres qu'on évite traditionnellement d'associer
 const NEUTRAL_AVOID = [['noir', 'marron'], ['noir', 'bleu marine'], ['marron', 'gris']];
@@ -146,7 +160,8 @@ function toast(msg, ms = 2600) {
   toast._t = setTimeout(() => t.classList.add('hidden'), ms);
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function itemName(it) { return it.name || `${CATS[it.category].short.toLowerCase()} ${it.color}`; }
+const colorLabel = it => it.color2 ? `${it.color} et ${it.color2}` : it.color;
+function itemName(it) { return it.name || `${CATS[it.category].short.toLowerCase()} ${colorLabel(it)}`; }
 
 // ---------- Navigation ----------
 function showTab(name) {
@@ -201,7 +216,7 @@ async function trimTransparent(blob) {
 }
 
 // Couleur dominante parmi la palette
-async function detectColor(blob) {
+async function detectColors(blob) {
   const img = await blobToImage(blob);
   const c = document.createElement('canvas');
   const k = 80 / Math.max(img.naturalWidth, img.naturalHeight);
@@ -225,11 +240,14 @@ async function detectColor(blob) {
     counts[best] = (counts[best] || 0) + 1;
   }
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  if (!sorted.length) return 'noir';
+  if (!sorted.length) return ['noir', ''];
   const total = sorted.reduce((s, e) => s + e[1], 0);
   // Pas de couleur nettement dominante : probablement un imprimé
-  if (sorted[0][1] / total < 0.3 && sorted.length > 4) return 'imprimé';
-  return sorted[0][0];
+  if (sorted[0][1] / total < 0.3 && sorted.length > 4) return ['imprimé', ''];
+  // Seconde couleur : bien présente et franchement différente de la première (pas une simple ombre)
+  const [m] = sorted[0], sec = sorted[1];
+  const far = sec && Math.hypot(...colorById(m).rgb.map((v, i) => v - colorById(sec[0]).rgb[i])) > 110;
+  return [m, sec && far && sec[1] / total >= 0.25 ? sec[0] : ''];
 }
 
 // Détourage : se fait sur le téléphone, le modèle (~40 Mo) est téléchargé une fois
@@ -266,7 +284,7 @@ function renderWardrobe() {
     .sort((a, b) => Object.keys(CATS).indexOf(a.category) - Object.keys(CATS).indexOf(b.category) || b.createdAt - a.createdAt);
   $('#wardrobe-empty').classList.toggle('hidden', state.items.length > 0);
   $('#wardrobe-grid').innerHTML = list.map(i =>
-    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="dot" style="background:${swatchCss(i.color)}"></span>${forgot ? `<span class="ago">${worn[i.id] ? 'il y a ' + daysSince(worn[i.id]) + ' j' : 'jamais portée'}</span>` : ''}</div>`).join('');
+    `<div class="tile" data-id="${i.id}"><img src="${itemUrl(i)}" alt="${esc(itemName(i))}" loading="lazy"><span class="dot" style="background:${dotCss(i)}"></span>${forgot ? `<span class="ago">${worn[i.id] ? 'il y a ' + daysSince(worn[i.id]) + ' j' : 'jamais portée'}</span>` : ''}</div>`).join('');
   $('#wardrobe-kicker').textContent = state.items.length ? `${state.items.length} vêtement${state.items.length > 1 ? 's' : ''}` : 'Ta garde-robe';
   $('#wardrobe-grid').querySelectorAll('.tile').forEach(t => t.onclick = () => openSheet(state.items.find(i => i.id === t.dataset.id)));
 }
@@ -281,6 +299,7 @@ function forgottenItems() {
 // Feuille d'ajout / édition
 $('#f-cat').innerHTML = Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
 $('#f-color').innerHTML = COLORS.map(c => `<option value="${c.id}">${c.id[0].toUpperCase() + c.id.slice(1)}</option>`).join('');
+const dotCss = it => it.color2 ? `linear-gradient(90deg,${swatchCss(it.color)} 50%,${swatchCss(it.color2)} 50%)` : swatchCss(it.color);
 function swatchCss(id) {
   const c = colorById(id);
   return c.rgb ? `rgb(${c.rgb.join(',')})` : 'conic-gradient(#ff5ca8,#ffd23f,#3fd28b,#4c8dff,#8b6cff,#ff5ca8)';
@@ -289,10 +308,20 @@ $('#f-cat-chips').innerHTML = Object.entries(CATS).map(([k, v]) => `<button type
 $('#f-cat-chips').querySelectorAll('button').forEach(b => b.onclick = () => { $('#f-cat').value = b.dataset.c; $('#f-cat').onchange(); syncPickers(); });
 $('#f-color-swatches').innerHTML = COLORS.map(c => `<button type="button" data-c="${c.id}" aria-label="${c.id}" style="background:${swatchCss(c.id)}"></button>`).join('') + '<div class="swatch-name" id="swatch-name"></div>';
 $('#f-color-swatches').querySelectorAll('button').forEach(b => b.onclick = () => { $('#f-color').value = b.dataset.c; syncPickers(); });
+// Seconde couleur, facultative (pièces bicolores)
+$('#f-color2-swatches').innerHTML = `<button type="button" data-c="" class="none" aria-label="Aucune">Aucune</button>` + COLORS.filter(c => c.rgb).map(c => `<button type="button" data-c="${c.id}" aria-label="${c.id}" style="background:${swatchCss(c.id)}"></button>`).join('') + '<div class="swatch-name" id="swatch-name2"></div>';
+$('#f-color2-swatches').querySelectorAll('button').forEach(b => b.onclick = () => { state.editing.color2 = b.dataset.c; syncPickers(); });
 function syncPickers() {
   $('#f-cat-chips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === $('#f-cat').value));
   $('#f-color-swatches').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === $('#f-color').value));
   const n = $('#f-color').value; $('#swatch-name').textContent = n ? n[0].toUpperCase() + n.slice(1) : '';
+  const isPrint = n === 'imprimé';
+  $('#f-color2-wrap').classList.toggle('hidden', isPrint);
+  let c2 = state.editing?.color2 || '';
+  if (c2 === n || isPrint) c2 = '';
+  if (state.editing) state.editing.color2 = c2;
+  $('#f-color2-swatches').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === c2));
+  $('#swatch-name2').textContent = c2 ? c2[0].toUpperCase() + c2.slice(1) : 'Unie';
 }
 $('#f-warmth').innerHTML = WARMTH.map((w, i) => `<button type="button" data-w="${i + 1}">${w}</button>`).join('');
 $('#f-warmth').querySelectorAll('button').forEach(b => b.onclick = () => setWarmth(+b.dataset.w));
@@ -364,7 +393,7 @@ async function handlePhoto(file) {
   $('#f-name').value = '';
   setWarmth(CATS.haut.warmth);
   syncSleevesField();
-  $('#f-color').value = await detectColor(original);
+  [$('#f-color').value, ed.color2] = await detectColors(original);
   syncPickers();
   $('#f-save').disabled = true;
   $('#cut-status').innerHTML = '<span class="spinner"></span>Détourage en cours… (la première fois, ça peut prendre une minute)';
@@ -374,7 +403,7 @@ async function handlePhoto(file) {
     ed.cutout = cut;
     ed.image = cut;
     $('#edit-img').src = URL.createObjectURL(cut);
-    $('#f-color').value = await detectColor(cut);
+    [$('#f-color').value, ed.color2] = await detectColors(cut);
     syncPickers();
     $('#cut-status').textContent = 'Fond retiré ✓';
     $('#toggle-cut').classList.remove('hidden');
@@ -401,6 +430,7 @@ $('#f-save').onclick = async () => {
     image: ed.image,
     category: $('#f-cat').value,
     color: $('#f-color').value,
+    color2: ($('#f-color').value !== 'imprimé' && ed.color2 && ed.color2 !== $('#f-color').value) ? ed.color2 : '',
     warmth: ed.warmth || CATS[$('#f-cat').value].warmth,
     rainOk: $('#f-rain').checked,
     sleeves: ['haut', 'chemise'].includes($('#f-cat').value) ? (ed.sleeves || ($('#f-cat').value === 'chemise' ? 'longues' : 'courtes')) : undefined,
@@ -741,7 +771,17 @@ function scoreOutfit(items, ctx) {
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
     const A = items[i], B = items[j];
     if (A.slot === 'shoes' && B.slot === 'shoes') continue;
-    const cp = colorPair(A.it.color, B.it.color);
+    let cp = colorPair(A.it.color, B.it.color);
+    // Pièces bicolores : la seconde couleur compte aussi, avec un poids moindre
+    const sec = [];
+    if (A.it.color2) sec.push([A.it.color2, B.it.color]);
+    if (B.it.color2) sec.push([A.it.color, B.it.color2]);
+    if (A.it.color2 && B.it.color2) sec.push([A.it.color2, B.it.color2]);
+    for (const [a2, b2] of sec) {
+      const v = colorPair(a2, b2);
+      cp += v * 0.4;
+      if (inPairs(CLASH_PAIRS, a2, b2)) warn.push(`Le ${a2} et le ${b2} se heurtent (${nm(A)} / ${nm(B)}).`);
+    }
     s += cp * (A.slot === 'style' || B.slot === 'style' ? 0.5 : 1);
     if (cp <= -1.2) {
       const a = A.it.color, b = B.it.color;
@@ -753,7 +793,7 @@ function scoreOutfit(items, ctx) {
     }
     s += Math.max(-3, Math.min(3, (state.prefs.aff[pairKey(A.it.id, B.it.id)] || 0) * 0.8));
   }
-  const accents = [...new Set(items.filter(x => !colorById(x.it.color).neutral && x.it.color !== 'imprimé').map(x => x.it.color))];
+  const accents = [...new Set(items.flatMap(x => [x.it.color, x.it.color2]).filter(c => c && c !== 'imprimé' && !colorById(c).neutral))];
   if (accents.length === 0) { s += 0.5; why.push('Tout en neutres : élégant et facile à porter.'); }
   else if (accents.length === 1) { s += 1.5; why.push(`Une seule couleur forte (${accents[0]}) sur une base neutre : la règle d'or.`); }
   else if (accents.length === 2 && inPairs(GOOD_PAIRS, accents[0], accents[1])) why.push(`${accents[0][0].toUpperCase() + accents[0].slice(1)} et ${accents[1]} : un duo harmonieux.`);
@@ -805,7 +845,7 @@ function scoreOutfit(items, ctx) {
   // Accessoire de style : assorti aux chaussures (règle cuir) ou neutre
   if (by.style) {
     s -= 0.4;
-    if (by.shoes && by.style.color === by.shoes.color) { s += 1.2; why.push('Accessoire assorti aux chaussures.'); }
+    if (by.shoes && [by.style.color, by.style.color2].includes(by.shoes.color)) { s += 1.2; why.push('Accessoire assorti aux chaussures.'); }
   }
   // Superposition : en mi-saison, une seule couche suffit
   if (plan.oneLayer) { const extra = ['under', 'mid', 'outer'].filter(k => by[k]).length; s += extra >= 2 ? -1.5 : extra ? 0.5 : -2; }
@@ -1137,7 +1177,7 @@ function renderStage() {
   const strip = $('#pieces-strip');
   strip.innerHTML = SLOT_ORDER.filter(s => p[s] && state.items.find(i => i.id === p[s])).map(s => {
     const it = state.items.find(i => i.id === p[s]);
-    return `<button data-slot="${s}"><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || it.color)}</span></button>`;
+    return `<button data-slot="${s}"><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || colorLabel(it))}</span></button>`;
   }).join('');
   updateSaveBtn();
   updateRateBtns();
@@ -1252,7 +1292,7 @@ function openOutfit(o) {
   $('#o-images').querySelectorAll('img').forEach((im, k) => im.onclick = () => viewImage(k === 0 && o.aiImage ? o.aiImage : o.preview));
   $('#o-minis').innerHTML = SLOT_ORDER.filter(s => o.pieces[s]).map(s => {
     const it = state.items.find(i => i.id === o.pieces[s]);
-    return it ? `<button><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || it.color)}</span></button>` : '';
+    return it ? `<button><img src="${itemUrl(it)}" alt=""><span><b>${esc(SLOT_NAME[s])}</b>${esc(it.name || colorLabel(it))}</span></button>` : '';
   }).join('');
   $('#osheet').classList.remove('hidden');
 }
